@@ -120,7 +120,7 @@ static void demo_queries() {
     std::cout << "[78] h(goal)=" << h78_goal
               << "  h(one)="   << h78_one
               << "  h(custom)="<< h78_cus << "\n";
-
+/*
     // --- 7/4/4 (auto) ---
     const int h744_goal = pdb15::heuristic_744_auto(goal);
     const int h744_one  = pdb15::heuristic_744_auto(one);
@@ -128,7 +128,7 @@ static void demo_queries() {
 
     std::cout << "[744] h(goal)=" << h744_goal
               << "  h(one)="    << h744_one
-              << "  h(custom)=" << h744_cus << "\n";
+              << "  h(custom)=" << h744_cus << "\n";*/
 }
 
 int main() {
@@ -138,10 +138,10 @@ int main() {
 
         // בנה/בדוק 7/8
         ensure_78(out_dir);
-
+/*
         // בנה/בדוק 7/4/4
         ensure_744(out_dir);
-
+*/
         // הדגמת חישובי היוריסטיקה
         demo_queries();
 

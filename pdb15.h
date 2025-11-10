@@ -52,7 +52,8 @@ namespace pdb15 {
 
         inline std::uint64_t size() const { return size_; }
 
-        bool save(const std::string &path) const; // raw dump (packed)
+        bool save(const std::string& path, bool with_progress = true) const;      // כתיבה במנות
+        bool save_atomic(const std::string& path, bool with_progress = true) const; // path.tmp ואז rename
 
     private:
         std::uint64_t size_;
@@ -61,8 +62,7 @@ namespace pdb15 {
 #else
         std::vector<std::uint8_t> data4_; // 2 entries per byte
 #endif
-        friend PackedPDB load_pdb_from_file(const std::string& path, int k);
-
+        friend PackedPDB load_pdb_from_file(const std::string& path, int k); // כדי לטעון ישירות לבאפר
     };
 
     // ---- Building / Loading -------------------------------------------------------
@@ -77,7 +77,7 @@ namespace pdb15 {
     std::uint64_t states_for_pattern(int k);
 
     // Load a PDB from disk (created by build_pdb_01bfs). k = pattern size
-    PackedPDB load_pdb_from_file(const std::string &path, int k);
+    PackedPDB load_pdb_from_file(const std::string& path, int k);
 
     // ---- Lookup / Heuristic -------------------------------------------------------
 
