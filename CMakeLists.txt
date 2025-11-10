@@ -13,4 +13,6 @@ add_executable(bootcamp
         puzzle15_state.h
         puzzle_actions.h
         i_env.h
+        pdb15.h
+        pdb15.cpp
 )
