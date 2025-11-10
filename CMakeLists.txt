@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(bootcamp
         main.cpp
         tests.cpp
+        pdb15.cpp
         puzzle_env.cpp
         puzzle15_state.cpp
         puzzle_env.h
@@ -14,5 +15,5 @@ add_executable(bootcamp
         puzzle_actions.h
         i_env.h
         pdb15.h
-        pdb15.cpp
+
 )
