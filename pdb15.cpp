@@ -150,61 +150,61 @@ namespace pdb15 {
 #endif
     }
 
-    bool PackedPDB::save(const std::string& path, bool with_progress) const {
-    using clock = std::chrono::steady_clock;
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
-    if (!out) return false;
+    bool PackedPDB::save(const std::string &path, bool with_progress) const {
+        using clock = std::chrono::steady_clock;
+        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+        if (!out) return false;
 
 #if PDB_BITS == 8
-    const std::uint8_t* ptr = data8_.data();
-    auto bytes = static_cast<std::uint64_t>(data8_.size());
+        const std::uint8_t *ptr = data8_.data();
+        auto bytes = static_cast<std::uint64_t>(data8_.size());
 #else
-    const std::uint8_t* ptr = data4_.data();
-    std::uint64_t bytes = static_cast<std::uint64_t>(data4_.size());
+        const std::uint8_t *ptr = data4_.data();
+        std::uint64_t bytes = static_cast<std::uint64_t>(data4_.size());
 #endif
 
-    const std::size_t CHUNK = 32 * 1024 * 1024; // 32 MiB
-    std::uint64_t written = 0;
-    auto t0 = clock::now();
+        const std::size_t CHUNK = 32 * 1024 * 1024; // 32 MiB
+        std::uint64_t written = 0;
+        auto t0 = clock::now();
 
-    while (written < bytes) {
-        std::size_t to_write = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, bytes - written));
-        out.write(reinterpret_cast<const char*>(ptr + written), to_write);
-        if (!out) return false;
-        written += to_write;
+        while (written < bytes) {
+            std::size_t to_write = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, bytes - written));
+            out.write(reinterpret_cast<const char *>(ptr + written), to_write);
+            if (!out) return false;
+            written += to_write;
 
-        if (with_progress) {
-            static const std::uint64_t REPORT = 256ull * 1024 * 1024; // דו"ח כל 256 MiB
-            if (written >= REPORT && ((written % REPORT) == 0 || written == bytes)) {
-                double sec = std::chrono::duration<double>(clock::now() - t0).count();
-                double mib_done = written / (1024.0 * 1024.0);
-                double mib_all  = bytes   / (1024.0 * 1024.0);
-                double rate     = sec > 0 ? (mib_done / sec) : 0.0;
-                std::cout.setf(std::ios::unitbuf);
-                std::cout << "[build] wrote " << static_cast<std::uint64_t>(mib_done)
-                          << " / " << static_cast<std::uint64_t>(mib_all) << " MiB  ("
-                          << static_cast<int>(100.0 * mib_done / mib_all) << "%)  "
-                          << rate << " MiB/s\n";
+            if (with_progress) {
+                static const std::uint64_t REPORT = 256ull * 1024 * 1024; // דו"ח כל 256 MiB
+                if (written >= REPORT && ((written % REPORT) == 0 || written == bytes)) {
+                    double sec = std::chrono::duration<double>(clock::now() - t0).count();
+                    double mib_done = written / (1024.0 * 1024.0);
+                    double mib_all = bytes / (1024.0 * 1024.0);
+                    double rate = sec > 0 ? (mib_done / sec) : 0.0;
+                    std::cout.setf(std::ios::unitbuf);
+                    std::cout << "[build] wrote " << static_cast<std::uint64_t>(mib_done)
+                            << " / " << static_cast<std::uint64_t>(mib_all) << " MiB  ("
+                            << static_cast<int>(100.0 * mib_done / mib_all) << "%)  "
+                            << rate << " MiB/s\n";
+                }
             }
         }
+        out.flush();
+        return static_cast<bool>(out);
     }
-    out.flush();
-    return static_cast<bool>(out);
-}
 
-bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
-    std::error_code ec;
-    std::filesystem::path p(path);
-    if (!p.parent_path().empty()) std::filesystem::create_directories(p.parent_path(), ec);
-    auto tmp = (p.parent_path() / (p.filename().string() + ".tmp")).string();
-    if (!save(tmp, with_progress)) return false;
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) {
-        std::filesystem::remove(tmp, ec);
-        return false;
+    bool PackedPDB::save_atomic(const std::string &path, bool with_progress) const {
+        std::error_code ec;
+        std::filesystem::path p(path);
+        if (!p.parent_path().empty()) std::filesystem::create_directories(p.parent_path(), ec);
+        auto tmp = (p.parent_path() / (p.filename().string() + ".tmp")).string();
+        if (!save(tmp, with_progress)) return false;
+        std::filesystem::rename(tmp, path, ec);
+        if (ec) {
+            std::filesystem::remove(tmp, ec);
+            return false;
+        }
+        return true;
     }
-    return true;
-}
 
     // ---- IO helpers ---------------------------------------------------------------
 
@@ -220,7 +220,7 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
 #endif
     }
 
-    PackedPDB load_pdb_from_file(const std::string& path, int k) {
+    PackedPDB load_pdb_from_file(const std::string &path, int k) {
         const std::uint64_t need_bytes = expected_bytes_for_k(k);
 
         std::ifstream in(path, std::ios::binary);
@@ -237,18 +237,18 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
         PackedPDB pdb(states_for_pattern(k));
 
 #if PDB_BITS == 8
-        std::uint8_t* dst = pdb.data8_.data();
+        std::uint8_t *dst = pdb.data8_.data();
 #else
-        std::uint8_t* dst = pdb.data4_.data();
+        std::uint8_t *dst = pdb.data4_.data();
 #endif
 
-        std::filebuf* fb = in.rdbuf();
+        std::filebuf *fb = in.rdbuf();
         const std::size_t CHUNK = 8 * 1024 * 1024; // 8 MiB
         std::uint64_t pos = 0;
 
         while (pos < need_bytes) {
             std::size_t want = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, need_bytes - pos));
-            std::streamsize got = fb->sgetn(reinterpret_cast<char*>(dst + pos),
+            std::streamsize got = fb->sgetn(reinterpret_cast<char *>(dst + pos),
                                             static_cast<std::streamsize>(want));
             if (got <= 0) throw std::runtime_error("read failed: " + path);
             pos += static_cast<std::uint64_t>(got);
@@ -318,18 +318,19 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
         };
         using clock = std::chrono::steady_clock;
         auto t0 = clock::now();
-        constexpr std::uint64_t PROGRESS_EVERY = 50'000'000ULL; // ← כל 50M הרחבות
+        constexpr std::uint64_t PROGRESS_EVERY = 50'000'000ULL;
         std::uint64_t next_report = PROGRESS_EVERY;
         std::uint64_t expanded = 0, relaxed = 0;
-        if (verbose) std::cout.setf(std::ios::unitbuf); // הדפסה מיידית
+        if (verbose) std::cout.setf(std::ios::unitbuf);
 
         // 0–1 BFS
         while (!dq.empty()) {
-            Node cur = dq.front(); dq.pop_front();
+            Node cur = dq.front();
+            dq.pop_front();
             ++expanded;
 
             const std::uint64_t cur_idx = rank_node(cur);
-            const std::uint8_t  cur_d   = dist.get(cur_idx);
+            const std::uint8_t cur_d = dist.get(cur_idx);
 
             for (int di = 0; di < 4; ++di) {
                 int nb = neighbors[cur.blank][di];
@@ -338,7 +339,7 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
                 Node nxt = cur;
                 int j = contains_tile_at(cur, nb);
                 if (j >= 0) {
-                    // עלות 1 – אריח בתבנית
+                    // cost 1 - tile in pattern
                     nxt.pos[static_cast<std::size_t>(j)] = cur.blank;
                     nxt.blank = static_cast<std::uint8_t>(nb);
                     const std::uint64_t nidx = rank_node(nxt);
@@ -349,7 +350,7 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
                         ++relaxed;
                     }
                 } else {
-                    // עלות 0 – אריח לא בתבנית
+                    // cost 0 - tile not in pattern
                     nxt.blank = static_cast<std::uint8_t>(nb);
                     const std::uint64_t nidx = rank_node(nxt);
                     if (dist.get(nidx) > cur_d) {
@@ -360,14 +361,14 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
                 }
             }
 
-            // --- לוג כל 50M הרחבות ---
+            // --- log ---
             if (verbose && expanded >= next_report) {
                 double sec = std::chrono::duration<double>(clock::now() - t0).count();
                 double rate = (sec > 0.0) ? (expanded / sec) : 0.0;
                 std::cout << "[build] exp=" << expanded
-                          << "  relax=" << relaxed
-                          << "  q=" << dq.size()
-                          << "  rate=" << rate << " states/s\n";
+                        << "  relax=" << relaxed
+                        << "  q=" << dq.size()
+                        << "  rate=" << rate << " states/s\n";
                 next_report += PROGRESS_EVERY;
             }
         }
@@ -375,9 +376,9 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
             double sec = std::chrono::duration<double>(clock::now() - t0).count();
             double rate = (sec > 0.0) ? (expanded / sec) : 0.0;
             std::cout << "[build] BFS done: exp=" << expanded
-                      << "  relax=" << relaxed
-                      << "  time=" << sec << "s"
-                      << "  avg=" << rate << " states/s\n";
+                    << "  relax=" << relaxed
+                    << "  time=" << sec << "s"
+                    << "  avg=" << rate << " states/s\n";
         }
 
 #if PDB_BITS == 8
@@ -387,7 +388,7 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
 #endif
         if (verbose) {
             std::cout << "[build] writing file (" << bytes_to_write << " bytes) -> "
-                      << std::filesystem::absolute(out_path) << "\n";
+                    << std::filesystem::absolute(out_path) << "\n";
         }
         if (!dist.save_atomic(out_path, /*with_progress=*/true)) {
             throw std::runtime_error("failed to write PDB file: " + out_path);
@@ -483,7 +484,7 @@ bool PackedPDB::save_atomic(const std::string& path, bool with_progress) const {
 
     // ---- Auto-loading, state-only API (with simple caching) ----------------------
     namespace {
-        // קאש + נתיבי ברירת־מחדל
+        // default path
         std::string g_p7 = "pdb_1_7.bin";
         std::string g_p8 = "pdb_8_15.bin";
         std::string g_pA = "pdb_1_7.bin";

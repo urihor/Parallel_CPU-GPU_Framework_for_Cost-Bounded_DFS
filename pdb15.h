@@ -52,8 +52,8 @@ namespace pdb15 {
 
         inline std::uint64_t size() const { return size_; }
 
-        bool save(const std::string& path, bool with_progress = true) const;      // כתיבה במנות
-        bool save_atomic(const std::string& path, bool with_progress = true) const; // path.tmp ואז rename
+        bool save(const std::string &path, bool with_progress = true) const; // כתיבה במנות
+        bool save_atomic(const std::string &path, bool with_progress = true) const; // path.tmp ואז rename
 
     private:
         std::uint64_t size_;
@@ -62,7 +62,7 @@ namespace pdb15 {
 #else
         std::vector<std::uint8_t> data4_; // 2 entries per byte
 #endif
-        friend PackedPDB load_pdb_from_file(const std::string& path, int k); // כדי לטעון ישירות לבאפר
+        friend PackedPDB load_pdb_from_file(const std::string &path, int k); // כדי לטעון ישירות לבאפר
     };
 
     // ---- Building / Loading -------------------------------------------------------
@@ -77,7 +77,7 @@ namespace pdb15 {
     std::uint64_t states_for_pattern(int k);
 
     // Load a PDB from disk (created by build_pdb_01bfs). k = pattern size
-    PackedPDB load_pdb_from_file(const std::string& path, int k);
+    PackedPDB load_pdb_from_file(const std::string &path, int k);
 
     // ---- Lookup / Heuristic -------------------------------------------------------
 
@@ -116,14 +116,12 @@ namespace pdb15 {
 
     // Autoloading (state-only) API — defaults & setters
     // --- Heuristic-by-state only (auto-load & cache PDBs) ---
-    void set_default_paths_78(const std::string& path7, const std::string& path8);
-    void set_default_paths_744(const std::string& pathA, const std::string& pathB, const std::string& pathC);
+    void set_default_paths_78(const std::string &path7, const std::string &path8);
+
+    void set_default_paths_744(const std::string &pathA, const std::string &pathB, const std::string &pathC);
 
     // Loads on first use (and caches). Just give a state:
-    int heuristic_78_auto(const puzzle15_state& s);
-    int heuristic_744_auto(const puzzle15_state& s);
+    int heuristic_78_auto(const puzzle15_state &s);
+
+    int heuristic_744_auto(const puzzle15_state &s);
 } // namespace pdb15
-
-
-
-
