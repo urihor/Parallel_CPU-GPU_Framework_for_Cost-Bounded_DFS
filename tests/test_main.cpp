@@ -6,96 +6,151 @@
 // test_main.cpp
 #include <iostream>
 #include <filesystem>
+#include <stdexcept>
+#include "puzzle_env.h" // בשביל לייצר מצב "מהלך-אחד" בנוחות
 #include "pdb15.h"
 #include "puzzle15_state.h"
-#include "puzzle_env.h"   // בשביל לייצר מצב מהלך-אחד בנוחות
 
 // הצהרות קדמיות (ההגדרות ב-tests.cpp)
 void RunPuzzle15StateTests();
 void RunStpEnvTests();
 
-
-
 namespace fs = std::filesystem;
 
-// קבצי ה-7/8
-static const char* PDB7_PATH = "pdb_1_7.bin";
-static const char* PDB8_PATH = "pdb_8_15.bin";
-
-// תבניות 7/8 זרות (דיסג'וינט)
-static const pdb15::Pattern PAT7 = {1,2,3,4,5,6,7};
-static const pdb15::Pattern PAT8 = {8,9,10,11,12,13,14,15};
-
-static void build_78_if_needed() {
-    const bool have7 = fs::exists(PDB7_PATH);
-    const bool have8 = fs::exists(PDB8_PATH);
-
-    if (have7 && have8) {
-        std::cout << "[build] 7/8 PDBs already exist, skipping build.\n";
-        return;
-    }
-
-    std::cout << "[build] Building 7/8 PDBs (default 8-bit entries)...\n";
-    if (!have7) {
-        pdb15::build_pdb_01bfs(PAT7, PDB7_PATH, /*verbose=*/true);
-        std::cout << "[build] 7-PDB done -> " << PDB7_PATH << "\n";
-    } else {
-        std::cout << "[build] 7-PDB exists -> " << PDB7_PATH << "\n";
-    }
-
-    if (!have8) {
-        // שים לב: זה גדול מאוד (≈3.87 GiB ב-8bit, ≈1.93 GiB ב-4bit)
-        pdb15::build_pdb_01bfs(PAT8, PDB8_PATH, /*verbose=*/true);
-        std::cout << "[build] 8-PDB done -> " << PDB8_PATH << "\n";
-    } else {
-        std::cout << "[build] 8-PDB exists -> " << PDB8_PATH << "\n";
-    }
+// חשב גודל-קובץ צפוי עבור k (מס' אריחים בתבנית)
+static std::uint64_t expected_bytes_for_k(int k) {
+    std::uint64_t n = pdb15::states_for_pattern(k); // P(16, k+1)
+#if PDB_BITS == 8
+    return n;
+#else
+    return (n + 1) / 2;
+#endif
 }
 
-static void demo_query_78() {
-    // טוענים את הטבלאות מהדיסק
-    auto pdb7 = pdb15::load_pdb_from_file(PDB7_PATH, /*k=*/static_cast<int>(PAT7.size())); // k=7
-    auto pdb8 = pdb15::load_pdb_from_file(PDB8_PATH, /*k=*/static_cast<int>(PAT8.size())); // k=8
+// בדיקת קובץ: קיים ובדיוק בגודל הצפוי
+static bool file_ok(const fs::path& p, int k) {
+    std::error_code ec;
+    if (!fs::exists(p, ec)) return false;
+    auto sz = fs::file_size(p, ec);
+    if (ec) return false;
+    return sz == expected_bytes_for_k(k);
+}
 
-    // מכינים שני מצבים: יעד, ומהלך-אחד מהיעד
-    puzzle15_state goal;
-    // מלא ידנית את יעד למקרה שברירת־מחדל איננה יעד (אפשר להשאיר אם כבר יעד):
-    goal.tiles = {  1,  2,  3,  4,
-                    5,  6,  7,  8,
-                    9, 10, 11, 12,
-                   13, 14, 15,  0 };
-    goal.blankPos = 15;
+// בנה 7/8 אם חסר/פגום; קבצים יכתבו תחת out_dir
+static void ensure_78(const fs::path& out_dir) {
+    fs::create_directories(out_dir);
+    fs::path p7 = out_dir / "pdb_1_7.bin";
+    fs::path p8 = out_dir / "pdb_8_15.bin";
 
-    // מייצרים מצב מהלך-אחד חוקי ע"י שימוש בסביבה
-    StpEnv env;
-    auto acts = env.GetActions(goal);
-    puzzle15_state one = goal;
-    if (!acts.empty()) {
-        env.ApplyAction(one, acts[0]); // יישום המהלך הראשון (כל מהלך חוקי יספיק להדגמה)
+    bool ok7 = file_ok(p7, 7);
+    bool ok8 = file_ok(p8, 8);
+
+    std::cout << "[ensure_78] output dir: " << fs::absolute(out_dir) << "\n";
+    if (!ok7) {
+        std::cout << "[ensure_78] building 7-PDB -> " << fs::absolute(p7) << "\n";
+        pdb15::build_pdb_01bfs({1,2,3,4,5,6,7}, p7.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_78] 7-PDB OK -> " << fs::absolute(p7) << "\n";
     }
-    // 3) מצב שנבנה עם הבנאי (initializer-list)
+    if (!ok8) {
+        std::cout << "[ensure_78] building 8-PDB -> " << fs::absolute(p8) << "\n";
+        pdb15::build_pdb_01bfs({8,9,10,11,12,13,14,15}, p8.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_78] 8-PDB OK -> " << fs::absolute(p8) << "\n";
+    }
+
+    // נגדיר את הנתיבים לגרסת ה-auto
+    pdb15::set_default_paths_78(p7.string(), p8.string());
+}
+
+// בנה 7/4/4 אם חסר/פגום; קבצים יכתבו תחת out_dir
+static void ensure_744(const fs::path& out_dir) {
+    fs::create_directories(out_dir);
+    fs::path pA = out_dir / "pdb_1_7.bin";
+    fs::path pB = out_dir / "pdb_8_11.bin";
+    fs::path pC = out_dir / "pdb_12_15.bin";
+
+    bool okA = file_ok(pA, 7);
+    bool okB = file_ok(pB, 4);
+    bool okC = file_ok(pC, 4);
+
+    std::cout << "[ensure_744] output dir: " << fs::absolute(out_dir) << "\n";
+    if (!okA) {
+        std::cout << "[ensure_744] building A(1..7) -> " << fs::absolute(pA) << "\n";
+        pdb15::build_pdb_01bfs({1,2,3,4,5,6,7}, pA.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] A OK -> " << fs::absolute(pA) << "\n";
+    }
+    if (!okB) {
+        std::cout << "[ensure_744] building B(8..11) -> " << fs::absolute(pB) << "\n";
+        pdb15::build_pdb_01bfs({8,9,10,11}, pB.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] B OK -> " << fs::absolute(pB) << "\n";
+    }
+    if (!okC) {
+        std::cout << "[ensure_744] building C(12..15) -> " << fs::absolute(pC) << "\n";
+        pdb15::build_pdb_01bfs({12,13,14,15}, pC.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] C OK -> " << fs::absolute(pC) << "\n";
+    }
+
+    // נגדיר את הנתיבים לגרסת ה-auto
+    pdb15::set_default_paths_744(pA.string(), pB.string(), pC.string());
+}
+
+static void demo_queries() {
+    // מצב יעד
+    puzzle15_state goal; // בנאי ברירת-מחדל = יעד
+    // מצב מהלך-אחד (באמצעות הסביבה)
+    StpEnv env;
+    puzzle15_state one = goal;
+    auto acts = env.GetActions(goal);
+    if (!acts.empty()) env.ApplyAction(one, acts[0]);
+
+    // מצב מותאם ידנית (הבנאי עושה ולידציה ומוצא blankPos)
     puzzle15_state custom({
-    0,12,10,13,15,11,14,9,3,7,2,5,4,8,6,1  // שים לב: ה-0 כאן, הבנאי יזהה את מיקום החור לבד
+        0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1
     });
 
-    // חישוב היוריסטיקה האדיטיבית: h = h7 + h8
-    const int h_goal = pdb15::additive_heuristic(goal, {{&pdb7, PAT7}, {&pdb8, PAT8}});
-    const int h_one  = pdb15::additive_heuristic(one,  {{&pdb7, PAT7}, {&pdb8, PAT8}});
-    const int h_custom = pdb15::additive_heuristic(custom, {{&pdb7, PAT7}, {&pdb8, PAT8}});
+    // --- 7/8 (auto) ---
+    const int h78_goal = pdb15::heuristic_78_auto(goal);
+    const int h78_one  = pdb15::heuristic_78_auto(one);
+    const int h78_cus  = pdb15::heuristic_78_auto(custom);
 
-    std::cout << "[query] h(goal) = " << h_goal << "\n";
-    std::cout << "[query] h(one-move) = " << h_one  << "\n";
-    std::cout << "[query] h(custom) = " << h_custom << "\n";
+    std::cout << "[78] h(goal)=" << h78_goal
+              << "  h(one)="   << h78_one
+              << "  h(custom)="<< h78_cus << "\n";
+
+    // --- 7/4/4 (auto) ---
+    const int h744_goal = pdb15::heuristic_744_auto(goal);
+    const int h744_one  = pdb15::heuristic_744_auto(one);
+    const int h744_cus  = pdb15::heuristic_744_auto(custom);
+
+    std::cout << "[744] h(goal)=" << h744_goal
+              << "  h(one)="    << h744_one
+              << "  h(custom)=" << h744_cus << "\n";
 }
 
 int main() {
     try {
-        build_78_if_needed();
-        demo_query_78();
+        // נכתוב לקבצים בתיקיית ה-working של הריצה (Debug/Release)
+        const fs::path out_dir = fs::current_path();
+
+        // בנה/בדוק 7/8
+        ensure_78(out_dir);
+
+        // בנה/בדוק 7/4/4
+        ensure_744(out_dir);
+
+        // הדגמת חישובי היוריסטיקה
+        demo_queries();
+
+        std::cout << "[done]\n";
     } catch (const std::exception& ex) {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
     }
+
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();
     RunStpEnvTests();
