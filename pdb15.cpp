@@ -1,7 +1,7 @@
-//
-// Created by Owner on 09/11/2025.
-//
 // ===============================
+// File: pdb15.cpp
+// ===============================
+
 
 #include "pdb15.h"
 
@@ -150,60 +150,15 @@ namespace pdb15 {
 #endif
     }
 
-    bool PackedPDB::save(const std::string &path, bool with_progress) const {
-        using clock = std::chrono::steady_clock;
-        std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    bool PackedPDB::save(const std::string &path) const {
+        std::ofstream out(path, std::ios::binary);
         if (!out) return false;
-
 #if PDB_BITS == 8
-        const std::uint8_t *ptr = data8_.data();
-        std::uint64_t bytes = static_cast<std::uint64_t>(data8_.size());
+        out.write(reinterpret_cast<const char *>(data8_.data()), static_cast<std::streamsize>(data8_.size()));
 #else
-        const std::uint8_t *ptr = data4_.data();
-        std::uint64_t bytes = static_cast<std::uint64_t>(data4_.size());
+        out.write(reinterpret_cast<const char *>(data4_.data()), static_cast<std::streamsize>(data4_.size()));
 #endif
-
-        const std::size_t CHUNK = 32 * 1024 * 1024; // 32 MiB
-        std::uint64_t written = 0;
-        auto t0 = clock::now();
-
-        while (written < bytes) {
-            std::size_t to_write = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, bytes - written));
-            out.write(reinterpret_cast<const char *>(ptr + written), to_write);
-            if (!out) return false;
-            written += to_write;
-
-            if (with_progress) {
-                static const std::uint64_t REPORT = 256ull * 1024 * 1024; // דו\"ח כל 256 MiB
-                if (written >= REPORT && (written % REPORT == 0 || written == bytes)) {
-                    double sec = std::chrono::duration<double>(clock::now() - t0).count();
-                    double mib_done = written / (1024.0 * 1024.0);
-                    double mib_all = bytes / (1024.0 * 1024.0);
-                    double rate = sec > 0 ? (mib_done / sec) : 0.0;
-                    std::cout.setf(std::ios::unitbuf);
-                    std::cout << "[build] wrote " << (std::uint64_t) mib_done
-                            << " / " << (std::uint64_t) mib_all << " MiB  ("
-                            << (int) (100.0 * mib_done / mib_all) << "%)  "
-                            << rate << " MiB/s\n";
-                }
-            }
-        }
-        out.flush();
         return static_cast<bool>(out);
-    }
-
-    bool PackedPDB::save_atomic(const std::string &path, bool with_progress) const {
-        std::error_code ec;
-        std::filesystem::path p(path);
-        if (!p.parent_path().empty()) std::filesystem::create_directories(p.parent_path(), ec);
-        auto tmp = (p.parent_path() / (p.filename().string() + ".tmp")).string();
-        if (!save(tmp, with_progress)) return false;
-        std::filesystem::rename(tmp, path, ec);
-        if (ec) {
-            std::filesystem::remove(tmp, ec);
-            return false;
-        }
-        return true;
     }
 
     // ---- IO helpers ---------------------------------------------------------------
@@ -222,9 +177,8 @@ namespace pdb15 {
 
     std::uint64_t states_for_pattern(int k) { return ::perm_count(k + 1); }
 
-    PackedPDB load_pdb_from_file(const std::string &path, int k) {
+    PackedPDB load_pdb_from_file(const std::string& path, int k) {
         const std::uint64_t n_states = states_for_pattern(k);
-
 #if PDB_BITS == 8
         const std::uint64_t need_bytes = n_states;
 #else
@@ -234,9 +188,9 @@ namespace pdb15 {
         std::ifstream in(path, std::ios::binary);
         if (!in) throw std::runtime_error("cannot open file: " + path);
 
-        // ודא שהגודל על הדיסק בדיוק מה שצריך
+        // ודא שהגודל מדויק
         in.seekg(0, std::ios::end);
-        std::uint64_t len = static_cast<std::uint64_t>(in.tellg());
+        const auto len = static_cast<std::uint64_t>(in.tellg());
         if (len != need_bytes) {
             throw std::runtime_error("corrupt size: expected " + std::to_string(need_bytes) +
                                      " got " + std::to_string(len) + " for " + path);
@@ -245,22 +199,22 @@ namespace pdb15 {
 
         PackedPDB pdb(n_states);
 
-        // מצביע לבאפר הפנימי שאליו נקרא ישירות
+        // קרא ישירות לבאפר הפנימי עם sgetn (עוקף תקלות read() על >2GB)
 #if PDB_BITS == 8
-        std::uint8_t *dst = pdb.data8_.data();
+        std::uint8_t* dst = pdb.data8_.data();
 #else
-        std::uint8_t *dst = pdb.data4_.data();
+        std::uint8_t* dst = pdb.data4_.data();
 #endif
+        std::filebuf* fb = in.rdbuf();
+        const std::size_t CHUNK = 8 * 1024 * 1024; // 8MiB
+        std::uint64_t pos = 0;
 
-        // קריאה במנות, בלי להקצות באפר ענק
-        const std::size_t CHUNK = 32 * 1024 * 1024; // 32 MiB
-        std::uint64_t read = 0;
-        while (read < need_bytes) {
-            std::size_t to_read = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, need_bytes - read));
-            if (!in.read(reinterpret_cast<char *>(dst + read), static_cast<std::streamsize>(to_read))) {
-                throw std::runtime_error("read failed: " + path);
-            }
-            read += to_read;
+        while (pos < need_bytes) {
+            std::size_t want = static_cast<std::size_t>(std::min<std::uint64_t>(CHUNK, need_bytes - pos));
+            std::streamsize got = fb->sgetn(reinterpret_cast<char*>(dst + pos),
+                                            static_cast<std::streamsize>(want));
+            if (got <= 0) throw std::runtime_error("read failed: " + path);
+            pos += static_cast<std::uint64_t>(got);
         }
         return pdb;
     }
@@ -268,73 +222,52 @@ namespace pdb15 {
 
     // ---- Build (0–1 BFS) ----------------------------------------------------------
 
-    pdb15::PackedPDB build_pdb_01bfs(const Pattern &pattern_tiles,
-                                     const std::string &out_path,
-                                     bool verbose) {
-        using namespace pdb15;
-
+    PackedPDB build_pdb_01bfs(const Pattern &pattern_tiles,
+                              const std::string &out_path,
+                              bool verbose) {
         const int k = static_cast<int>(pattern_tiles.size());
-        if (k <= 0 || k > 8) {
-            throw std::runtime_error("pattern size must be 1..8");
-        }
+        if (k <= 0 || k > 8) throw std::runtime_error("pattern size must be 1..8");
 
-        // --- שכנים בלוח 4x4 ---
         int max_deg = 0;
         const auto neighbors = ::build_neighbors(max_deg);
 
-        // --- רדיקס/דירוג חלקי ---
-        const int m = k + 1; // אריחי התבנית + חור
+        const int m = k + 1; // tiles + blank
         const auto weights = ::build_radix_weights(m);
         const std::uint64_t n_states = ::perm_count(m); // P(16, m)
 
         if (verbose) {
-            std::cout.setf(std::ios::unitbuf); // פלט “מיידי”
-            std::cout << "[build] pattern {";
+            std::cout << "Building PDB for tiles {";
             for (int i = 0; i < k; ++i) {
                 std::cout << pattern_tiles[i] << (i + 1 == k ? "" : ", ");
             }
-            std::cout << "}  states=" << n_states;
-
+            std::cout << "} -> states = " << n_states;
 #if PDB_BITS == 8
-            double bytes = static_cast<double>(n_states);
+            auto bytes = static_cast<double>(n_states);
 #else
             double bytes = static_cast<double>((n_states + 1) / 2);
 #endif
             double gib = bytes / (1024.0 * 1024.0 * 1024.0);
-            std::cout << "  storage~" << gib << " GiB  (PDB_BITS=" << PDB_BITS << ")\n";
+            std::cout << ", storage ~ " << gib << " GiB (PDB_BITS=" << PDB_BITS << ")\n";
         }
 
         PackedPDB dist(n_states);
 
-        // --- מצב היעד במרחב המופשט ---
-        struct Node {
-            std::array<std::uint8_t, 8> pos{};
-            std::uint8_t blank{};
-        };
+        // Goal node
         Node goal{};
-        for (int i = 0; i < k; ++i) {
+        for (int i = 0; i < k && i < 8; ++i) {
             int tile = pattern_tiles[i];
             goal.pos[static_cast<std::size_t>(i)] = static_cast<std::uint8_t>(::goal_pos_of_tile(tile));
         }
-        goal.blank = static_cast<std::uint8_t>(::goal_pos_of_tile(0));
+        goal.blank = static_cast<std::uint8_t>(::goal_pos_of_tile(BLANK_TILE));
 
         auto rank_node = [&](const Node &s) -> std::uint64_t {
             std::vector<int> seq;
             seq.reserve(m);
-            for (int i = 0; i < k; ++i)
-                seq.push_back(static_cast<int>(s.pos[static_cast<std::size_t>(i)]));
+            for (int i = 0; i < k; ++i) seq.push_back(static_cast<int>(s.pos[static_cast<std::size_t>(i)]));
             seq.push_back(static_cast<int>(s.blank));
             return ::rank_partial(seq, weights);
         };
 
-        auto contains_tile_at = [&](const Node &s, int cell) -> int {
-            for (int i = 0; i < k; ++i)
-                if (s.pos[static_cast<std::size_t>(i)] == cell)
-                    return i;
-            return -1;
-        };
-
-        // --- 0–1 BFS ---
         std::deque<Node> dq;
         {
             const std::uint64_t ridx = rank_node(goal);
@@ -342,14 +275,15 @@ namespace pdb15 {
             dq.push_back(goal);
         }
 
-        std::uint64_t expanded = 0, relaxed = 0;
-        const std::size_t progress_every = 50'000'000; // הדפסה כל מיליון הרחבות
+        auto contains_tile_at = [&](const Node &s, int cell) -> int {
+            for (int i = 0; i < k; ++i) if (s.pos[static_cast<std::size_t>(i)] == cell) return i;
+            return -1;
+        };
 
+        // 0–1 BFS
         while (!dq.empty()) {
             Node cur = dq.front();
             dq.pop_front();
-            ++expanded;
-
             const std::uint64_t cur_idx = rank_node(cur);
             const std::uint8_t cur_d = dist.get(cur_idx);
 
@@ -360,52 +294,28 @@ namespace pdb15 {
                 Node nxt = cur;
                 int j = contains_tile_at(cur, nb);
                 if (j >= 0) {
-                    // הזזת אריח בתבנית -> עלות 1
+                    // Move pattern tile into blank; cost 1
                     nxt.pos[static_cast<std::size_t>(j)] = cur.blank;
                     nxt.blank = static_cast<std::uint8_t>(nb);
                     const std::uint64_t nidx = rank_node(nxt);
-                    std::uint8_t nd = static_cast<std::uint8_t>(cur_d + 1);
+                    auto nd = static_cast<std::uint8_t>(cur_d + 1);
                     if (dist.get(nidx) > nd) {
                         dist.set(nidx, nd);
                         dq.push_back(nxt);
-                        ++relaxed;
                     }
                 } else {
-                    // הזזת חור מול אריח שאינו בתבנית -> עלות 0
+                    // Swap blank with non-pattern; cost 0
                     nxt.blank = static_cast<std::uint8_t>(nb);
                     const std::uint64_t nidx = rank_node(nxt);
                     if (dist.get(nidx) > cur_d) {
                         dist.set(nidx, cur_d);
                         dq.push_front(nxt);
-                        ++relaxed;
                     }
                 }
             }
-
-            if (verbose && (expanded % progress_every == 0)) {
-                std::cout << "[build] exp=" << expanded
-                        << "  relax=" << relaxed
-                        << "  q=" << dq.size() << "\n";
-            }
         }
 
-        // --- כתיבה לדיסק ---
-#if PDB_BITS == 8
-        std::uint64_t bytes_to_write = n_states;
-#else
-        std::uint64_t bytes_to_write = (n_states + 1) / 2;
-#endif
-        if (verbose) {
-            std::cout << "[build] writing file (" << bytes_to_write << " bytes) -> "
-                    << std::filesystem::absolute(out_path) << "\n";
-        }
-        if (!dist.save_atomic(out_path, /*with_progress=*/true)) {
-            throw std::runtime_error("failed to write PDB file: " + out_path);
-        }
-
-        if (verbose) {
-            std::cout << "[build] done.\n";
-        }
+        if (!dist.save(out_path)) throw std::runtime_error("failed to write PDB file: " + out_path);
         return dist;
     }
 
@@ -458,5 +368,79 @@ namespace pdb15 {
         PackedPDB pdbB = load_pdb_from_file(pathB, static_cast<int>(B.size()));
         PackedPDB pdbC = load_pdb_from_file(pathC, static_cast<int>(C.size()));
         return additive_heuristic(s, {{&pdbA, A}, {&pdbB, B}, {&pdbC, C}});
+    }
+
+    void build_78(const std::string &out7, const std::string &out8, bool verbose) {
+        Pattern P7{1, 2, 3, 4, 5, 6, 7};
+        Pattern P8{8, 9, 10, 11, 12, 13, 14, 15};
+        (void) build_pdb_01bfs(P7, out7, verbose);
+        (void) build_pdb_01bfs(P8, out8, verbose);
+    }
+
+    int heuristic_78(const puzzle15_state &s, const PackedPDB &pdb7, const PackedPDB &pdb8) {
+        Pattern P7{1, 2, 3, 4, 5, 6, 7};
+        Pattern P8{8, 9, 10, 11, 12, 13, 14, 15};
+        return static_cast<int>(lookup(pdb7, P7, s)) + static_cast<int>(lookup(pdb8, P8, s));
+    }
+
+    int heuristic_744(const puzzle15_state &s,
+                      const PackedPDB &pdbA, const PackedPDB &pdbB, const PackedPDB &pdbC) {
+        Pattern A{1, 2, 3, 4, 5, 6, 7};
+        Pattern B{8, 9, 10, 11};
+        Pattern C{12, 13, 14, 15};
+        return static_cast<int>(lookup(pdbA, A, s)) +
+               static_cast<int>(lookup(pdbB, B, s)) +
+               static_cast<int>(lookup(pdbC, C, s));
+    }
+
+    int heuristic_78_from_files(const puzzle15_state &s,
+                                const std::string &path7,
+                                const std::string &path8) {
+        Pattern P7{1, 2, 3, 4, 5, 6, 7};
+        Pattern P8{8, 9, 10, 11, 12, 13, 14, 15};
+        PackedPDB pdb7 = load_pdb_from_file(path7, static_cast<int>(P7.size()));
+        PackedPDB pdb8 = load_pdb_from_file(path8, static_cast<int>(P8.size()));
+        return heuristic_78(s, pdb7, pdb8);
+    }
+
+    // ---- Auto-loading, state-only API (with simple caching) ----------------------
+    namespace {
+        // קאש + נתיבי ברירת־מחדל
+        std::string g_p7 = "pdb_1_7.bin";
+        std::string g_p8 = "pdb_8_15.bin";
+        std::string g_pA = "pdb_1_7.bin";
+        std::string g_pB = "pdb_8_11.bin";
+        std::string g_pC = "pdb_12_15.bin";
+
+        std::unique_ptr<pdb15::PackedPDB> g_7, g_8, g_A, g_B, g_C;
+    }
+
+    void set_default_paths_78(const std::string &path7, const std::string &path8) {
+        g_p7 = path7;
+        g_p8 = path8;
+        g_7.reset();
+        g_8.reset(); // לנקות קאש כדי שייטען מחדש בפעם הבאה
+    }
+
+    void set_default_paths_744(const std::string &pathA, const std::string &pathB, const std::string &pathC) {
+        g_pA = pathA;
+        g_pB = pathB;
+        g_pC = pathC;
+        g_A.reset();
+        g_B.reset();
+        g_C.reset();
+    }
+
+    int heuristic_78_auto(const puzzle15_state &s) {
+        if (!g_7) g_7 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p7, 7));
+        if (!g_8) g_8 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p8, 8));
+        return heuristic_78(s, *g_7, *g_8);
+    }
+
+    int heuristic_744_auto(const puzzle15_state &s) {
+        if (!g_A) g_A = std::make_unique<PackedPDB>(load_pdb_from_file(g_pA, 7));
+        if (!g_B) g_B = std::make_unique<PackedPDB>(load_pdb_from_file(g_pB, 4));
+        if (!g_C) g_C = std::make_unique<PackedPDB>(load_pdb_from_file(g_pC, 4));
+        return heuristic_744(s, *g_A, *g_B, *g_C);
     }
 } // namespace pdb15
