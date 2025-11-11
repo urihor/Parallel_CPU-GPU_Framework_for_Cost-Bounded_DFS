@@ -1,0 +1,40 @@
+# CMake & build outputs
+/build/
+/bin/
+/lib/
+/out/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+Testing/
+CTestTestfile.cmake
+Makefile
+*.ninja
+.ninja_deps
+.ninja_log
+
+# Visual Studio generators (אם יוצרים דרך CMake, אפשר להתעלם מהם)
+*.sln
+*.vcxproj*
+.vs/
+
+# OS / IDE noise
+*.user
+*.opendb
+*.VC.db
+*.DS_Store
+Thumbs.db
+
+# Compiler artifacts
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+*.pdb
+*.ilk
+*.d
