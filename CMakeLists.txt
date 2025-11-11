@@ -13,4 +13,7 @@ add_executable(bootcamp
         puzzle15_state.h
         puzzle_actions.h
         i_env.h
+        work.h
+        generate_work.h
+        generate_work_puzzle.cpp
 )
