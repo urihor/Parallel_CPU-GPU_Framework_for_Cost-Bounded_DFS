@@ -15,5 +15,4 @@ add_executable(bootcamp
         i_env.h
         work.h
         generate_work.h
-        generate_work_puzzle.cpp
 )
