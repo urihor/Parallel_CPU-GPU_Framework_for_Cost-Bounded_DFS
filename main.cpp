@@ -26,11 +26,14 @@ void build_works_example() {
 
     // without deduplication
     GenerateWork(env, start, d_init, hist, works);
+    std::cout << works.size() << std::endl;
+    works.clear();
 
     //  with deduplication
-    /*std::unordered_set<std::size_t> seen;
+    std::unordered_set<std::size_t> seen;
     GenerateWorkDedup(env, start, d_init, hist, works, seen,
-                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); });*/
+                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); });
+    std::cout << works.size() << std::endl;
 }
 
 int main() {

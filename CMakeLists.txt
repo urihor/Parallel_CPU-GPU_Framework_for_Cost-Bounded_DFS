@@ -15,4 +15,5 @@ add_executable(bootcamp
         i_env.h
         work.h
         generate_work.h
+        action_concepts.h
 )
