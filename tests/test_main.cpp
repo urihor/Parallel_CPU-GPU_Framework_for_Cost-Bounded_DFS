@@ -143,14 +143,14 @@ int main() {
                 ensure_744(out_dir);
         */
         // Demonstration of heuristic calculations
-        demo_queries();
+       demo_queries();
 
         std::cout << "[done]\n";
     } catch (const std::exception &ex) {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
     }
-
+*/
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();
     RunStpEnvTests();

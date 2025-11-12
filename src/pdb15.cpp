@@ -3,7 +3,7 @@
 // ===============================
 
 
-#include "pdb15.h"
+#include "../include/pdb15.h"
 
 static_assert(PDB_BITS == 4 || PDB_BITS == 8, "PDB_BITS must be 4 or 8");
 

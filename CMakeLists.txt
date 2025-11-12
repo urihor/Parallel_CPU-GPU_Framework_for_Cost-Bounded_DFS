@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(bootcamp_core
         src/puzzle_env.cpp
         src/puzzle15_state.cpp
-        pdb15.cpp
+        src/pdb15.cpp
 )
 
 target_include_directories(bootcamp_core
