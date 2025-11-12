@@ -18,22 +18,30 @@ void RunStpEnvTests();
 
 void build_works_example() {
     StpEnv env;
-    puzzle15_state start{0, 12, 9, 13, 15, 11, 10, 14, 3, 7, 2, 5, 4, 8, 6, 1};
-    constexpr int d_init = 6;
+    puzzle15_state start{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
+    constexpr int d_init = 14;
+    int best_len = d_init;
 
-    std::vector<StpMove> hist;
+    std::vector<StpMove> hist, best_sol;
     std::vector<WorkFor<StpEnv> > works;
 
     // without deduplication
-    GenerateWork(env, start, d_init, hist, works);
+    GenerateWork(env, start, d_init, hist, works, &best_len, &best_sol);
     std::cout << works.size() << std::endl;
+    if (best_len <= d_init - 1) {
+        std::cout << "the best solution is " << best_len << " moves" << std::endl;
+    }
     works.clear();
 
     //  with deduplication
     std::unordered_set<std::size_t> seen;
+    best_len = d_init;
     GenerateWorkDedup(env, start, d_init, hist, works, seen,
-                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); });
+                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); }, &best_len, &best_sol);
     std::cout << works.size() << std::endl;
+    if (best_len <= d_init - 1) {
+        std::cout << "the best solution is " << best_len << " moves" << std::endl;
+    }
 }
 
 int main() {
