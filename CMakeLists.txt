@@ -6,30 +6,34 @@ project(bootcamp LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ספריית הליבה (הלוגיקה/אלגוריתמים)
 add_library(bootcamp_core
-    src/puzzle_env.cpp
-    src/puzzle15_state.cpp
+        src/puzzle_env.cpp
+        src/puzzle15_state.cpp
+        src/pdb15.cpp
 )
+
 target_include_directories(bootcamp_core
-    PUBLIC
+        PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+
+
+
 
 enable_testing()
 
 
 add_executable(bootcamp_tests
-    tests/test_main.cpp         
+    tests/test_main.cpp
     tests/tests.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
 
-# רישום ל-ctest
+# ן¿½ן¿½ן¿½ן¿½ן¿½ ן¿½-ctest
 add_test(NAME bootcamp_tests_run COMMAND bootcamp_tests)
 
-# (אופציונלי) מיקומי פלט מסודרים
+# (ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½) ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½ ן¿½ן¿½ן¿½ ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½ן¿½
 set_target_properties(bootcamp_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
