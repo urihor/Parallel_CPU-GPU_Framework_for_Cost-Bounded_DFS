@@ -10,6 +10,11 @@
 #include "puzzle_env.h"
 #include "pdb15.h"
 #include "puzzle15_state.h"
+#include "generate_work.h"
+#include "work.h"
+#include "test_generate_work.h"
+#include <unordered_set>
+
 
 void RunPuzzle15StateTests();
 
@@ -131,6 +136,34 @@ static void demo_queries() {
                   << "  h(custom)=" << h744_cus << "\n";*/
 }
 
+void build_works_example() {
+    StpEnv env;
+    puzzle15_state start{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
+    constexpr int d_init = 14;
+    int best_len = d_init;
+
+    std::vector<StpMove> hist, best_sol;
+    std::vector<WorkFor<StpEnv> > works;
+
+    // without deduplication
+    GenerateWork(env, start, d_init, hist, works, best_len, best_sol);
+    std::cout << works.size() << std::endl;
+    if (best_len <= d_init - 1) {
+        std::cout << "the best solution is " << best_len << " moves" << std::endl;
+    }
+    works.clear();
+
+    //  with deduplication
+    std::unordered_set<std::size_t> seen;
+    best_len = d_init;
+    GenerateWorkDedup(env, start, d_init, hist, works, seen,
+                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); }, best_len, best_sol);
+    std::cout << works.size() << std::endl;
+    if (best_len <= d_init - 1) {
+        std::cout << "the best solution is " << best_len << " moves" << std::endl;
+    }
+}
+
 int main() {
     try {
         // Write the files to the run's working directory (Debug/Release)
@@ -150,7 +183,10 @@ int main() {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
     }
-*/
+
+    GenerateWorkTests::RunAll();
+
+    build_works_example();
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();
     RunStpEnvTests();

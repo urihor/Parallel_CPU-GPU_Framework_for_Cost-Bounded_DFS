@@ -10,6 +10,7 @@ add_library(bootcamp_core
         src/puzzle_env.cpp
         src/puzzle15_state.cpp
         src/pdb15.cpp
+
 )
 
 target_include_directories(bootcamp_core
@@ -26,6 +27,7 @@ enable_testing()
 add_executable(bootcamp_tests
     tests/test_main.cpp
     tests/tests.cpp
+    tests/test_generate_work.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
