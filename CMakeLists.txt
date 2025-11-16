@@ -10,6 +10,8 @@ add_library(bootcamp_core
         src/puzzle_env.cpp
         src/puzzle15_state.cpp
         src/pdb15.cpp
+        include/subtree_expansion.h
+        src/subtree_expansion.cpp
 
 )
 
