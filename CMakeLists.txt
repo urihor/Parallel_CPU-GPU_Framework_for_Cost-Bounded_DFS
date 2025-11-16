@@ -16,4 +16,6 @@ add_executable(bootcamp
         work.h
         generate_work.h
         action_concepts.h
+        test_generate_work.cpp
+        test_generate_work.h
 )

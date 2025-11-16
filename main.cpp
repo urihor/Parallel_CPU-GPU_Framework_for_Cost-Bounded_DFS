@@ -9,6 +9,7 @@
 #include "work.h"
 #include "puzzle_env.h"
 #include "puzzle15_state.h"
+#include "test_generate_work.h"
 #include <unordered_set>
 
 
@@ -26,7 +27,7 @@ void build_works_example() {
     std::vector<WorkFor<StpEnv> > works;
 
     // without deduplication
-    GenerateWork(env, start, d_init, hist, works, &best_len, &best_sol);
+    GenerateWork(env, start, d_init, hist, works, best_len, best_sol);
     std::cout << works.size() << std::endl;
     if (best_len <= d_init - 1) {
         std::cout << "the best solution is " << best_len << " moves" << std::endl;
@@ -37,7 +38,7 @@ void build_works_example() {
     std::unordered_set<std::size_t> seen;
     best_len = d_init;
     GenerateWorkDedup(env, start, d_init, hist, works, seen,
-                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); }, &best_len, &best_sol);
+                      [](const puzzle15_state &s) { return std::hash<puzzle15_state>{}(s); }, best_len, best_sol);
     std::cout << works.size() << std::endl;
     if (best_len <= d_init - 1) {
         std::cout << "the best solution is " << best_len << " moves" << std::endl;
@@ -45,6 +46,8 @@ void build_works_example() {
 }
 
 int main() {
+    GenerateWorkTests::RunAll();
+
     build_works_example();
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();
