@@ -32,12 +32,12 @@ struct Work {
         : root(root_state),
           init(init_actions),
           stack_(),
-          initialized_(false){}
+          initialized_(false) {
+    }
 
     // Has this subtree finished exploring all of its nodes?
     [[nodiscard]] bool is_done() const noexcept {
-        return
-        (initialized_ && stack_.empty());
+        return (initialized_ && stack_.empty());
     }
 
     // Ensure that the DFS stack contains at least the root node.
