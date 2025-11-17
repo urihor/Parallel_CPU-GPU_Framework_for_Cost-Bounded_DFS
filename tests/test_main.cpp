@@ -14,7 +14,7 @@
 #include "test_generate_work.h"
 #include <unordered_set>
 #include "test_do_iteration.h"
-
+#include "test_cb-dfs.h"
 
 void RunPuzzle15StateTests();
 
@@ -186,7 +186,7 @@ int main() {
 
     GenerateWorkTests::RunAll();
     DoIterationTests::RunAll();
-
+    CBDfsTests::RunAll();
     build_works_example();
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();

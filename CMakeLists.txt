@@ -30,6 +30,7 @@ add_executable(bootcamp_tests
     tests/tests.cpp
     tests/test_generate_work.cpp
     tests/test_do_iteration.cpp
+    tests/test_cb-dfs.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
