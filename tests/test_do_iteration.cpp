@@ -8,6 +8,7 @@
 #include <vector>
 #include <limits>
 
+#include "pdb15.h"
 #include "work.h"
 #include "do_iteration.h"
 #include "puzzle_env.h"
@@ -16,6 +17,26 @@
 
 using batch_ida::DoIteration;
 using TestWork = WorkFor<StpEnv>;
+
+// Real heuristic based on our PDB implementation.
+// We wrap it in a simple function so the type matches HeuristicFn<StpEnv>.
+static int PdbHeuristic(const StpEnv::State& s) {
+    return pdb15::heuristic_744_auto(s);
+}
+
+// Returns a non-goal state obtained by applying a single legal move
+// to the goal state.
+static puzzle15_state make_single_move_from_goal(StpEnv& env) {
+    puzzle15_state goal; // default: goal state
+    auto actions = env.GetActions(goal);
+    assert(!actions.empty());
+
+    puzzle15_state start = goal;
+    env.ApplyAction(start, actions[0]);
+    assert(!env.IsGoal(start));
+
+    return start;
+}
 
 static int ZeroHeuristic(const StpEnv::State& s) {
     (void)s;
@@ -200,6 +221,74 @@ static void test_threshold_updated_on_pruned_node() {
 }
 
 /**
+ * Test 5: Real PDB heuristic on a non-goal state.
+ *
+ * Setup:
+ *   - start is one move away from the goal (make_single_move_from_goal).
+ *   - h(start) is computed by the actual PDB heuristic.
+ *   - g(start) = 0 (this Work has an empty init path).
+ *
+ * We run two scenarios:
+ *
+ *   (A) bound = h(start) - 1:
+ *       - f(start) = g + h = h(start) > bound
+ *       - The root is pruned.
+ *       - DoIteration returns false.
+ *       - local_next_bound is updated to f(start) = h(start).
+ *
+ *   (B) bound = h(start):
+ *       - f(start) = h(start) <= bound
+ *       - The root is NOT pruned and is expanded.
+ *       - Children are pushed onto the stack.
+ *       - DoIteration returns false (start is not a goal).
+ *       - local_next_bound remains INF (no pruned nodes).
+ */
+static void test_pdb_heuristic_on_non_goal_state() {
+    StpEnv env;
+
+    puzzle15_state start = make_single_move_from_goal(env);
+    std::vector<StpEnv::Action> empty_path;
+
+    // Sanity: PDB heuristic should be strictly positive on a non-goal state.
+    const int h = PdbHeuristic(start);
+    assert(h > 0);
+
+    // -------- Scenario A: bound too small -> prune root, update next_bound --------
+    {
+        TestWork work(start, empty_path);
+        const int bound = h - 1;  // so f(start) = h > bound
+        int local_next_bound = INF_INT;
+
+        bool found = DoIteration(env, work, bound, &PdbHeuristic, local_next_bound);
+
+        assert(!found);
+        assert(work.is_done());
+        assert(work.stack_size() == 0);
+        assert(local_next_bound == h); // minimal f > bound
+    }
+
+    // -------- Scenario B: bound large enough -> expand root, no threshold update --------
+    {
+        TestWork work(start, empty_path);
+        const int bound = h;      // so f(start) = h <= bound
+        int local_next_bound = INF_INT;
+
+        auto moves_from_start = env.GetActions(start);
+        assert(!moves_from_start.empty());
+
+        bool found = DoIteration(env, work, bound, &PdbHeuristic, local_next_bound);
+
+        assert(!found);                      // start is not a goal
+        assert(!work.is_done());             // children were pushed
+        assert(work.stack_size() == moves_from_start.size());
+        assert(local_next_bound == INF_INT); // no pruned nodes yet
+    }
+
+    std::cout << "[OK] test_pdb_heuristic_on_non_goal_state\n";
+}
+
+
+/**
  * Test suite runner.
  */
 void DoIterationTests::RunAll() {
@@ -207,5 +296,6 @@ void DoIterationTests::RunAll() {
     test_expand_non_goal_root_push_children();
     test_do_iteration_on_finished_work_is_noop();
     test_threshold_updated_on_pruned_node();
+    test_pdb_heuristic_on_non_goal_state();
     std::cout << "[OK] All DoIteration tests passed.\n";
 }

@@ -165,24 +165,24 @@ void build_works_example() {
 }
 
 int main() {
-    /*try {
+    try {
         // Write the files to the run's working directory (Debug/Release)
         const fs::path out_dir = fs::current_path();
 
         // Build/verify 7/8
-        ensure_78(out_dir);
+        //ensure_78(out_dir);
 
         // Build/verify 7/4/4
-                ensure_744(out_dir);
+        ensure_744(out_dir);
 
         // Demonstration of heuristic calculations
-       demo_queries();
+       //demo_queries();
 
         std::cout << "[done]\n";
     } catch (const std::exception &ex) {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
-    }*/
+    }
 
     GenerateWorkTests::RunAll();
     DoIterationTests::RunAll();
