@@ -32,13 +32,12 @@ struct Work {
         : root(root_state),
           init(init_actions),
           stack_(),
-          initialized_(false),
-          done_(false) {
-    }
+          initialized_(false){}
 
     // Has this subtree finished exploring all of its nodes?
     [[nodiscard]] bool is_done() const noexcept {
-        return done_ || (initialized_ && stack_.empty());
+        return
+        (initialized_ && stack_.empty());
     }
 
     // Ensure that the DFS stack contains at least the root node.
@@ -52,7 +51,6 @@ struct Work {
             root_node.g = static_cast<int>(init.size());
             stack_.push_back(root_node);
             initialized_ = true;
-            done_ = false;
         }
     }
 
@@ -72,9 +70,6 @@ struct Work {
         assert(initialized_ && !stack_.empty());
         Node node = stack_.back();
         stack_.pop_back();
-        if (stack_.empty()) {
-            done_ = true;
-        }
         return node;
     }
 
@@ -90,7 +85,6 @@ struct Work {
 private:
     std::vector<Node> stack_;
     bool initialized_ = false;
-    bool done_ = false;
 };
 
 // Convenience alias: a Work for a concrete Env.

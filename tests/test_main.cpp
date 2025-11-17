@@ -11,9 +11,9 @@
 #include "pdb15.h"
 #include "puzzle15_state.h"
 #include "generate_work.h"
-#include "work.h"
 #include "test_generate_work.h"
 #include <unordered_set>
+#include "test_do_iteration.h"
 
 
 void RunPuzzle15StateTests();
@@ -125,7 +125,7 @@ static void demo_queries() {
     std::cout << "[78] h(goal)=" << h78_goal
             << "  h(one)=" << h78_one
             << "  h(custom)=" << h78_cus << "\n";
-    /*
+
         // --- 7/4/4 (auto) ---
         const int h744_goal = pdb15::heuristic_744_auto(goal);
         const int h744_one  = pdb15::heuristic_744_auto(one);
@@ -133,7 +133,7 @@ static void demo_queries() {
 
         std::cout << "[744] h(goal)=" << h744_goal
                   << "  h(one)="    << h744_one
-                  << "  h(custom)=" << h744_cus << "\n";*/
+                  << "  h(custom)=" << h744_cus << "\n";
 }
 
 void build_works_example() {
@@ -165,16 +165,16 @@ void build_works_example() {
 }
 
 int main() {
-    try {
+    /*try {
         // Write the files to the run's working directory (Debug/Release)
         const fs::path out_dir = fs::current_path();
 
         // Build/verify 7/8
         ensure_78(out_dir);
-        /*
+
         // Build/verify 7/4/4
                 ensure_744(out_dir);
-        */
+
         // Demonstration of heuristic calculations
        demo_queries();
 
@@ -182,9 +182,10 @@ int main() {
     } catch (const std::exception &ex) {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
-    }
+    }*/
 
     GenerateWorkTests::RunAll();
+    DoIterationTests::RunAll();
 
     build_works_example();
     std::cout << "== running assert-based tests ==\n";
