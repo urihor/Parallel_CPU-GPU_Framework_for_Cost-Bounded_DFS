@@ -19,47 +19,31 @@ namespace batch_ida {
  * This implementation mirrors the structure of the pseudocode:
  *
  *   - There is a global pool of Works (subtrees), created by GenerateWork.
- *   - We simulate 'work_num' logical workers. Each worker i holds at most
- *     one active Work in slot[i].
- *   - terminated[i] indicates that worker i will never receive more work
- *     (its current subtree is finished and the global pool is exhausted).
+ *   - We simulate 'work_num' logical stacks:
+ *         stack[0], stack[1], ..., stack[work_num-1]
+ *     In the original pseudocode, each stack[i] is a CB-DFS stack assigned
+ *     to a logical worker / core.
+ *
+ *   - Each stack[i] in this C++ code is represented by a pointer to a Work
+ *     (subtree) in the global 'works' vector:
+ *         WorkFor<Env>* stack[i];
+ *
+ *   - terminated[i] indicates that stack[i] will never receive more work
+ *     (its current subtree is done and the global pool is exhausted).
  *
  * Control variables:
  *
- *   - miss    : number of workers that have entered the terminated state.
- *   - counter : round-robin index over workers (for the parallel version;
- *               here we simulate it in a single thread).
+ *   - miss    : number of stacks that have entered the terminated state.
+ *   - counter : round-robin index over stacks:
+ *                   i = counter mod num_stacks
  *
- * Loop (high level):
- *
- *   miss    ← 0
- *   counter ← 0
- *   while miss < num_slots and not goal found:
- *       i ← counter mod num_slots
- *       if terminated[i] == 1 then
- *           // worker i is permanently out of work
- *           // miss is NOT changed here (it was already counted)
- *       else
- *           if slot[i] is empty or its Work is done then
- *               try to acquire new Work from global pool
- *               if acquire fails then
- *                   terminated[i] ← 1
- *                   miss ← miss + 1
- *               else
- *                   // acquired new Work; perform one expansion step
- *                   DoIteration(slot[i], bound, heuristic, next_bound)
- *           else
- *               // slot[i] already holds an active non-done Work
- *               DoIteration(slot[i], bound, heuristic, next_bound)
- *       counter ← counter + 1
- *
- *   When miss == num_slots, all workers are in the terminated state and
+ *   When miss == num_stacks, all stacks are in the terminated state and
  *   there is no more work in this IDA* iteration.
  *
  * Parameters:
  *   env        - problem environment (15-puzzle, cube, etc.).
  *   works      - global pool of Work items (subtrees), from GenerateWork.
- *   work_num   - number of logical workers / slots to simulate.
+ *   work_num   - number of logical stacks to simulate (workNum in pseudocode).
  *   bound      - current IDA* threshold on f = g + h.
  *   heuristic  - heuristic function h(s).
  *   next_bound - [out] minimal f(n) > bound over all pruned nodes in this
@@ -86,36 +70,35 @@ bool CB_DFS(Env& env,
         return false;
     }
 
-    // We cannot have more slots than Works.
-    const std::size_t num_slots =
+    // We cannot have more logical stacks than Works.
+    const std::size_t num_stacks =
         std::min<std::size_t>(static_cast<std::size_t>(work_num), works.size());
 
     WorkScheduler<Env> scheduler(works);
 
-    // slot[i] holds the currently assigned Work for worker i (or nullptr).
-    std::vector<WorkType*> slots(num_slots, nullptr);
+    // stack[i] in the pseudocode: which Work is assigned to logical stack i.
+    std::vector<WorkType*> stack(num_stacks, nullptr);
 
-    // terminated[i] == 1 → this worker will never get more work.
-    std::vector<unsigned char> terminated(num_slots, 0);
+    // terminated[i] == 1 → this stack will never get more work.
+    std::vector<unsigned char> terminated(num_stacks, 0);
 
-    int miss = 0; // number of workers that have entered the terminated state
+    int miss = 0; // number of stacks that have entered the terminated state
 
-    // Initial assignment: try to give each slot an initial Work.
-    for (std::size_t i = 0; i < num_slots; ++i) {
+    // Initial assignment: try to give each stack[i] an initial Work.
+    for (std::size_t i = 0; i < num_stacks; ++i) {
         WorkType* w = nullptr;
-        std::size_t idx = 0;
-        if (scheduler.acquire(w, idx)) {
-            slots[i] = w;
+        if (scheduler.acquire(w)) {
+            stack[i] = w;
             terminated[i] = 0;
         } else {
-            slots[i] = nullptr;
+            stack[i] = nullptr;
             terminated[i] = 1;
-            ++miss; // this worker starts in the terminated state
+            ++miss; // this stack starts in the terminated state
         }
     }
 
-    // If all workers are terminated from the start, there is nothing to do.
-    if (miss == static_cast<int>(num_slots)) {
+    // If all stacks are terminated from the start, there is nothing to do.
+    if (miss == static_cast<int>(num_stacks)) {
         return false;
     }
 
@@ -125,40 +108,35 @@ bool CB_DFS(Env& env,
 
     // Stop when:
     //   - we find a goal, or
-    //   - miss == num_slots (all workers are terminated).
-    while (!found_solution && miss < static_cast<int>(num_slots)) {
-        const std::size_t i = counter % num_slots;
+    //   - miss == num_stacks (all stacks are terminated).
+    while (!found_solution && miss < static_cast<int>(num_stacks)) {
+        const std::size_t i = counter % num_stacks;
 
         if (terminated[i]) {
-            // This worker is permanently out of work; already counted in 'miss'.
+            // This stack is permanently out of work; already counted in 'miss'.
             ++counter;
             continue;
         }
 
-        WorkType* w = slots[i];
+        WorkType* w = stack[i];
 
-        // If this slot has no Work or its Work is finished, try to acquire a new Work.
+        // If this stack[i] has no Work or its Work is finished, try to acquire a new Work.
         if (w == nullptr || w->is_done()) {
             WorkType* new_w = nullptr;
-            std::size_t idx = 0;
-            if (scheduler.acquire(new_w, idx)) {
-                slots[i] = new_w;
+            if (scheduler.acquire(new_w)) {
+                stack[i] = new_w;
                 w = new_w;
             } else {
-                // No more Works in global pool → this worker is now terminated.
+                // No more Works in global pool → this stack is now terminated.
                 terminated[i] = 1;
-                ++miss;       // we have one more terminated worker
+                ++miss;       // we have one more terminated stack
                 ++counter;
                 continue;
             }
         }
 
         // At this point we have a non-null Work that is not done.
-        bool found = DoIteration(env, *w, bound, heuristic, next_bound);
-        if (found) {
-            found_solution = true;
-        }
-
+        found_solution = DoIteration(env, *w, bound, heuristic, next_bound);
         ++counter;
     }
 
@@ -182,4 +160,3 @@ bool CB_DFS(Env& env,
 }
 
 } // namespace batch_ida
-

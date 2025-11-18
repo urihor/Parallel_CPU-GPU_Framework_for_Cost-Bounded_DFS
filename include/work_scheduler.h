@@ -59,12 +59,11 @@ public:
     //
     // This function is thread-safe: multiple threads may call acquire()
     // concurrently, and each Work index will be returned at most once.
-    bool acquire(WorkType*& out_work, std::size_t& out_index) {
+    bool acquire(WorkType*& out_work) {
         std::size_t i = next_index_.fetch_add(1, std::memory_order_relaxed);
         if (i >= works_.size()) {
             return false; // no more works
         }
-        out_index = i;
         out_work  = &works_[i];
         return true;
     }

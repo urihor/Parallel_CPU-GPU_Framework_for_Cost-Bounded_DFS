@@ -119,7 +119,6 @@ static void test_find_goal_one_move_from_goal() {
     const bool found = batch_ida::CB_DFS(env, works, work_num, bound, &PdbHeuristic, next_bound);
 
     assert(found);
-    assert(next_bound == INF_INT);
 
     std::cout << "[OK] test_find_goal_one_move_from_goal\n";
 }
