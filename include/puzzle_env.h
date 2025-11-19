@@ -24,6 +24,8 @@ struct StpEnv final : i_env<puzzle15_state, StpMove> {
     // בדיקת מטרה מהירה ללא הקצאות
     [[nodiscard]] bool IsGoal(const State& s) const override;
 
+    [[nodiscard]] bool IsSolvable(const State& s) const override;
+
 
 private:
 

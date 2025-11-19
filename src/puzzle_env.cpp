@@ -57,6 +57,30 @@ bool StpEnv::IsGoal(const State &s) const {
     return true;
 }
 
+bool StpEnv::IsSolvable(const State& s) const {
+    // קלאסי: סופרים אינברסיות + שורה של ה-blank
+    // (זה רק שלד, אני מניח שכבר כתבת משהו כזה בעבר)
+    const auto& tiles = s.tiles;
+
+    int inversions = 0;
+    for (int i = 0; i < 16; ++i) {
+        if (tiles[i] == 0) continue;
+        for (int j = i + 1; j < 16; ++j) {
+            if (tiles[j] == 0) continue;
+            if (tiles[i] > tiles[j]) ++inversions;
+        }
+    }
+
+    int blank_row_from_bottom = 4 - (s.blankPos / 4); // לדוגמה
+
+    // עבור לוח 4x4:
+    // אם שורת ה-blank (מלמטה) זוגית → מספר האינברסיות צריך להיות אי-זוגי, וכו'.
+    // (תתאים ליישום המדויק שכבר יש לך)
+    bool solvable = ((blank_row_from_bottom + inversions) % 2 == 1);
+    return solvable;
+}
+
+
 puzzle15_state::Index StpEnv::NeighborIndex(const State &s, const Action a) {
 
     const int b = s.blankPos; // להימנע מ-underflow
