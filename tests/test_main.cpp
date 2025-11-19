@@ -15,6 +15,8 @@
 #include <unordered_set>
 #include "test_do_iteration.h"
 #include "test_cb-dfs.h"
+#include "batch_ida.h"
+#include "solution_printer.h"
 
 void RunPuzzle15StateTests();
 
@@ -164,8 +166,38 @@ void build_works_example() {
     }
 }
 
+static int PdbHeuristic(const StpEnv::State& s) {
+    return pdb15::heuristic_744_auto(s);
+}
+
+void run_batch_ida_example() {
+    StpEnv env;
+    puzzle15_state start{8,7,9,4,1,5,3,6,14,12,0,11,2,13,10,15}; // או מצב שרירותי שאתה מגדיר
+
+    int d_init   = 4;   // עומק ל-GenerateWork
+    int work_num = 8;   // מספר stack-ים לוגיים
+    int solution_cost = 0;
+    std::vector<StpEnv::Action> solution;
+
+
+    bool found = batch_ida::BatchIDA(env,
+                                     start,
+                                     &PdbHeuristic,
+                                     d_init,
+                                     work_num,
+                                     solution_cost,
+                                     solution);
+
+    if (found) {
+        std::cout << "Solution cost = " << solution_cost << "\n";
+        PrintSolution(env, start, solution);
+    } else {
+        std::cout << "No solution found.\n";
+    }
+}
+
 int main() {
-    try {
+    /*try {
         // Write the files to the run's working directory (Debug/Release)
         const fs::path out_dir = fs::current_path();
 
@@ -182,15 +214,15 @@ int main() {
     } catch (const std::exception &ex) {
         std::cerr << "[error] " << ex.what() << "\n";
         return 1;
-    }
-
-    GenerateWorkTests::RunAll();
+    }*/
+    run_batch_ida_example();
+    /*GenerateWorkTests::RunAll();
     DoIterationTests::RunAll();
     CBDfsTests::RunAll();
     build_works_example();
     std::cout << "== running assert-based tests ==\n";
     RunPuzzle15StateTests();
     RunStpEnvTests();
-    std::cout << "[ALL OK]\n";
+    std::cout << "[ALL OK]\n";*/
     return 0;
 }

@@ -11,6 +11,7 @@ add_library(bootcamp_core
         src/puzzle15_state.cpp
         src/pdb15.cpp
         src/do_iteration.cpp
+        src/solution_printer.cpp
 
 )
 

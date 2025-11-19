@@ -54,14 +54,18 @@ namespace batch_ida {
                   Heuristic heuristic,
                   int d_init,
                   int work_num,
-                  int &solution_cost) {
+                  int &solution_cost,
+                  std::vector<typename Env::Action> &solution) {
         using Action = typename Env::Action;
 
         constexpr int INF = std::numeric_limits<int>::max();
         solution_cost = INF;
+        solution.clear();
+
 
         if (!env.IsSolvable(start)) {
             // Unsolvable instance: no need to run IDA* at all.
+            std::cerr << "Board is not solvable" << std::endl;
             return false;
         }
 
@@ -103,6 +107,7 @@ namespace batch_ida {
             // we can stop immediately.
             if (best_len < INF && best_len <= bound) {
                 solution_cost = best_len;
+                solution = best_sol;
                 return true;
             }
 
@@ -123,10 +128,16 @@ namespace batch_ida {
                        next_bound)) {
                 // With an admissible heuristic and the standard IDA* bound
                 // update rule, the first solution found has cost == bound.
-                solution_cost = bound;
-                return true;
+                // Find which Work contains the goal and reconstruct its path.
+                for (auto &w: works) {
+                    if (w.goal_found()) {
+                        solution.clear();
+                        w.reconstruct_full_path(solution);
+                        solution_cost = static_cast<int>(solution.size());
+                        return true;
+                    }
+                }
             }
-
             // No solution within 'bound'. If next_bound stayed INF, it means
             // there were no nodes with f > bound, so increasing the bound
             // will not reveal new nodes → no solution exists.
@@ -147,18 +158,23 @@ namespace batch_ida {
      *
      *   int h(const Env::State&);
      */
-    template<class Env>
+    template
+    <
+        class Env
+    >
     bool BatchIDA(Env &env,
                   typename Env::State &start,
                   HeuristicFn<Env> heuristic,
                   int d_init,
                   int work_num,
-                  int &solution_cost) {
+                  int &solution_cost,
+                  std::vector<typename Env::Action> &solution) {
         return BatchIDA<Env, HeuristicFn<Env> >(env,
                                                 start,
                                                 heuristic,
                                                 d_init,
                                                 work_num,
-                                                solution_cost);
+                                                solution_cost,
+                                                solution);
     }
 } // namespace batch_ida
