@@ -13,7 +13,6 @@
 #include "puzzle_actions.h" // inverse(StpMove)
 
 
-
 static void test_dinit0_single_work() {
     // Arrange
     StpEnv env;

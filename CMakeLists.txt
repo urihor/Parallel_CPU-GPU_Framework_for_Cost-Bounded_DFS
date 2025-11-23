@@ -10,6 +10,7 @@ add_library(bootcamp_core
         src/puzzle_env.cpp
         src/puzzle15_state.cpp
         src/pdb15.cpp
+        src/do_iteration.cpp
 
 )
 
@@ -28,6 +29,8 @@ add_executable(bootcamp_tests
     tests/test_main.cpp
     tests/tests.cpp
     tests/test_generate_work.cpp
+    tests/test_do_iteration.cpp
+    tests/test_cb-dfs.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
