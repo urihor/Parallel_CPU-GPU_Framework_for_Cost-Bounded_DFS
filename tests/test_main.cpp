@@ -10,6 +10,7 @@
 #include "test_generate_work.h"
 #include "test_do_iteration.h"
 #include "test_cb-dfs.h"
+#include "test_ida_star_korf_examples.h"
 
 // Declared in other test source files (tests.cpp, etc.)
 void RunPuzzle15StateTests();
@@ -25,6 +26,7 @@ int main() {
         GenerateWorkTests::RunAll();
         DoIterationTests::RunAll();
         CBDfsTests::RunAll();
+        Korf100Tests::RunAll();
 
         std::cout << "[ALL TESTS OK]\n";
         return 0;

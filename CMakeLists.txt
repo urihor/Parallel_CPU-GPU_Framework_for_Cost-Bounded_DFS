@@ -10,6 +10,8 @@ add_library(bootcamp_core
         src/pdb15.cpp
         src/do_iteration.cpp
         src/solution_printer.cpp
+        src/korf_examples.cpp
+
 )
 
 target_include_directories(bootcamp_core
@@ -37,6 +39,7 @@ add_executable(bootcamp_tests
         tests/test_generate_work.cpp
         tests/test_do_iteration.cpp
         tests/test_cb-dfs.cpp
+        tests/test_ida_star_korf_boards.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)

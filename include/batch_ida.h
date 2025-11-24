@@ -57,6 +57,7 @@ namespace batch_ida {
                   int &solution_cost,
                   std::vector<typename Env::Action> &solution) {
         using Action = typename Env::Action;
+        using State = typename Env::State;
 
         constexpr int INF = std::numeric_limits<int>::max();
         solution_cost = INF;
@@ -102,7 +103,9 @@ namespace batch_ida {
                          works,
                          best_len,
                          best_sol);*/
-
+            auto key_fn = [](const State& s) {
+                return s.pack();   // State must have pack()
+            };
             std::unordered_set<std::size_t> seen;
             GenerateWorkDedup(env,
                          start,
@@ -110,7 +113,7 @@ namespace batch_ida {
                          empty_history,
                          works,
                          seen,
-                         [](const puzzle15_state& s){ return std::hash<puzzle15_state>{}(s); },
+                            key_fn,
                          best_len,
                          best_sol);
 
