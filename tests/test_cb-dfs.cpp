@@ -20,7 +20,7 @@
 
 // Real PDB-based heuristic.
 static int PdbHeuristic(const StpEnv::State& s) {
-    return pdb15::heuristic_744_auto(s);
+    return pdb15::heuristic_78_auto(s);
 }
 
 // Constant heuristic used only for testing threshold updates.
