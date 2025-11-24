@@ -1,4 +1,4 @@
-name: CMake (Windows self-hosted)
+name: CMake (Linux self-hosted)
 
 on:
   push:
@@ -8,19 +8,18 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, windows]
+    runs-on: [self-hosted, linux]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure CMake
+      - name: Configure CMake (Linux + g++)
         run: >
           cmake -S . -B build
-          -G "MinGW Makefiles"
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=cc.exe
-          -DCMAKE_CXX_COMPILER=c++.exe
+          -DCMAKE_C_COMPILER=cc
+          -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build -- -j 4
