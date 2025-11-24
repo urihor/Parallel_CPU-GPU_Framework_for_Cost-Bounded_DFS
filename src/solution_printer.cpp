@@ -7,7 +7,7 @@
 #include <iomanip>
 
 // Helper: print a single 4x4 15-puzzle board.
-static void print_board( puzzle15_state& s)
+static void print_board(const puzzle15_state& s)
 {
     std::cout << std::setfill(' ');
 

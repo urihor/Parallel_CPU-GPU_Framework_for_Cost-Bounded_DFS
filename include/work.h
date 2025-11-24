@@ -13,8 +13,8 @@ class Work {
 public:
     struct Node {
         State state{};
-        int   g = 0;                // depth from global start
-        int   parent = -1;          // index in nodes_, -1 for the root
+        int g = 0;                // depth from global start
+        int parent = -1;          // index in nodes_, -1 for the root
         Action action_from_parent{}; // valid if parent != -1
     };
 
@@ -92,9 +92,9 @@ public:
         assert(parent_index >= 0 && parent_index < static_cast<int>(nodes_.size()));
 
         Node child;
-        child.state             = s;
-        child.g                 = g;
-        child.parent            = parent_index;
+        child.state = s;
+        child.g = g;
+        child.parent = parent_index;
         child.action_from_parent = a;
 
         nodes_.push_back(child);
@@ -111,7 +111,7 @@ public:
     /// Mark the current node (the one last returned by pop_node()) as a goal.
     void mark_goal_current() {
         assert(current_node_index_ >= 0);
-        goal_found_      = true;
+        goal_found_ = true;
         goal_node_index_ = current_node_index_;
     }
 
@@ -164,10 +164,8 @@ public:
 private:
     std::vector<Node> nodes_;  // all nodes in this Work's search tree
     std::vector<int>  stack_;  // DFS stack: indices into nodes_
-
     bool initialized_ = false;
     int  current_node_index_ = -1;
-
     bool goal_found_      = false;
     int  goal_node_index_ = -1;
 };

@@ -1,5 +1,3 @@
-
-
 cmake_minimum_required(VERSION 3.22)
 project(bootcamp LANGUAGES CXX)
 
@@ -12,7 +10,6 @@ add_library(bootcamp_core
         src/pdb15.cpp
         src/do_iteration.cpp
         src/solution_printer.cpp
-
 )
 
 target_include_directories(bootcamp_core
@@ -20,26 +17,32 @@ target_include_directories(bootcamp_core
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+# === src main ===
+add_executable(bootcamp_main
+        src/main.cpp
+)
 
+target_link_libraries(bootcamp_main PRIVATE bootcamp_core)
 
+set_target_properties(bootcamp_main PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
 
 enable_testing()
 
-
+# === tests main   ===
 add_executable(bootcamp_tests
-    tests/test_main.cpp
-    tests/tests.cpp
-    tests/test_generate_work.cpp
-    tests/test_do_iteration.cpp
-    tests/test_cb-dfs.cpp
+        tests/test_main.cpp
+        tests/tests.cpp
+        tests/test_generate_work.cpp
+        tests/test_do_iteration.cpp
+        tests/test_cb-dfs.cpp
 )
 
 target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
 
-# ����� �-ctest
 add_test(NAME bootcamp_tests_run COMMAND bootcamp_tests)
 
-# (���������) ������ ��� �������
 set_target_properties(bootcamp_tests PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )

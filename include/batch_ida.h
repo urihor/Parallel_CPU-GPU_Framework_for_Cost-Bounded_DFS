@@ -95,11 +95,22 @@ namespace batch_ida {
             int best_len = INF;
             std::vector<Action> best_sol;
 
-            GenerateWork(env,
+            /*GenerateWork(env,
                          start,
                          d_init,
                          empty_history,
                          works,
+                         best_len,
+                         best_sol);*/
+
+            std::unordered_set<std::size_t> seen;
+            GenerateWorkDedup(env,
+                         start,
+                         d_init,
+                         empty_history,
+                         works,
+                         seen,
+                         [](const puzzle15_state& s){ return std::hash<puzzle15_state>{}(s); },
                          best_len,
                          best_sol);
 
@@ -159,9 +170,7 @@ namespace batch_ida {
      *   int h(const Env::State&);
      */
     template
-    <
-        class Env
-    >
+    <class Env>
     bool BatchIDA(Env &env,
                   typename Env::State &start,
                   HeuristicFn<Env> heuristic,
