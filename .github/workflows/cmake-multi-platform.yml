@@ -1,0 +1,30 @@
+name: CMake (Windows self-hosted)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: [self-hosted, windows]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build
+          -G "MinGW Makefiles"
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_C_COMPILER=cc.exe
+          -DCMAKE_CXX_COMPILER=c++.exe
+
+      - name: Build
+        run: cmake --build build -- -j 4
+
+      - name: Run tests
+        working-directory: build
+        run: ctest --output-on-failure
