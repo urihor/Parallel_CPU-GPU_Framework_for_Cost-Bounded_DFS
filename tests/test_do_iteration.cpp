@@ -21,7 +21,7 @@ using TestWork = WorkFor<StpEnv>;
 // Real heuristic based on our PDB implementation.
 // We wrap it in a simple function so the type matches HeuristicFn<StpEnv>.
 static int PdbHeuristic(const StpEnv::State& s) {
-    return pdb15::heuristic_744_auto(s);
+    return pdb15::heuristic_78_auto(s);
 }
 
 // Returns a non-goal state obtained by applying a single legal move

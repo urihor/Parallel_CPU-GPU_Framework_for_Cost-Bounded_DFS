@@ -12,5 +12,7 @@ struct i_env {
     virtual void ApplyAction(S& s, A a) = 0;           // מבצע מהלך אחד (in-place)
     virtual void UndoAction(S& s, A a) = 0;            // מבטל מהלך
     virtual bool IsGoal(const S& s) const = 0;         // האם s הוא מטרה
+    virtual bool IsSolvable(const S& s) const = 0;
+
     virtual ~i_env() = default;
 };
