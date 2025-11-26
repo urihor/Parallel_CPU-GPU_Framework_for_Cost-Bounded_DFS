@@ -64,7 +64,8 @@ void RunAll() {
                                          d_init,
                                          work_num,
                                          solution_cost,
-                                         solution);
+                                         solution,
+                                         1);
 
         assert(found && "BatchIDA failed to find a solution");
 

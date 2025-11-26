@@ -8,10 +8,8 @@
 
 #include <vector>
 #include <limits>
-#include <algorithm>
-#include  <thread>
+#include <thread>
 #include <atomic>
-#include <cstddef>
 
 #include "work.h"
 #include "work_scheduler.h"
@@ -20,41 +18,32 @@
 namespace batch_ida {
 
 /**
- * Multy-threaded CB-DFS (Algorithm 3) for one IDA* iteration.
+ * Parallel CB-DFS (Algorithm 3) for a single IDA* iteration.
  *
- * This implementation mirrors the structure of the pseudocode:
+ * Each CPU thread runs a local instance of CB-DFS, with its own:
+ *   - stack[work_num]
+ *   - terminated[work_num]
+ *   - miss
+ *   - counter
  *
- *   - There is a global pool of Works (subtrees), created by GenerateWork.
- *   - We simulate 'work_num' logical stacks:
- *         stack[0], stack[1], ..., stack[work_num-1]
- *
- *   - Each stack[i] in this C++ code is represented by a pointer to a Work
- *     (subtree) in the global 'works' vector:
- *         WorkFor<Env>* stack[i];
- *
- *   - terminated[i] indicates that stack[i] will never receive more work
- *     (its current subtree is done and the global pool is exhausted).
- *
- * Control variables:
- *
- *   - miss    : number of stacks that have entered the terminated state.
- *   - counter : round-robin index over stacks:
- *                   i = counter mod num_stacks
- *
- *   When miss == num_stacks, all stacks are in the terminated state and
- *   there is no more work in this IDA* iteration.
+ * All threads share:
+ *   - a single WorkScheduler over the global 'works' array,
+ *   - the 'found_solution' flag,
+ *   - and a global accumulator for 'next_bound'.
  *
  * Parameters:
- *   env        - problem environment (15-puzzle, cube, etc.).
- *   works      - global pool of Work items (subtrees), from GenerateWork.
- *   work_num   - number of logical stacks to simulate (workNum in pseudocode).
+ *   env        - problem environment (e.g., 15-puzzle).
+ *   works      - global pool of Work items, created by GenerateWork(…).
+ *   work_num   - logical number of stacks per thread (workNum in the paper).
  *   bound      - current IDA* threshold on f = g + h.
  *   heuristic  - heuristic function h(s).
- *   next_bound - [out] minimal f(n) > bound over all pruned nodes in this
- *                iteration, or std::numeric_limits<int>::max() if none.
+ *   next_bound - [out] minimal f(n) > bound seen in this iteration,
+ *                or std::numeric_limits<int>::max() if none.
+ *   num_threads_hint - optional number of OS threads to use; if <= 0,
+ *                      std::thread::hardware_concurrency() is used.
  *
  * Returns:
- *   true  - if a goal state was found with f <= bound.
+ *   true  - if at least one thread found a goal with f <= bound.
  *   false - otherwise.
  */
 template<class Env, class Heuristic>
@@ -64,7 +53,7 @@ bool CB_DFS(Env& env,
             int bound,
             Heuristic heuristic,
             int& next_bound,
-            int num_threads = 0)
+            std::size_t num_threads)
 {
     using WorkType = WorkFor<Env>;
     constexpr int INF = std::numeric_limits<int>::max();
@@ -75,46 +64,48 @@ bool CB_DFS(Env& env,
         return false;
     }
 
-    // Thread-safe scheduler over the global pool of Work objects.
+    // Shared scheduler over the global Works vector.
+    // All threads pull distinct Work items from this scheduler.
     WorkScheduler<Env> scheduler(works);
 
-    // Shared state between all CPU threads.
+    // Shared flags between threads.
     std::atomic<bool> found_solution(false);
-    std::atomic<int>  global_next_bound(INF);
 
-    // Decide how many OS threads to use.
-    std::size_t num_of_threads;
-    if (num_threads > 0) {
-        num_of_threads = static_cast<std::size_t>(num_threads);
-    } else {
-        unsigned int hw = std::thread::hardware_concurrency();
-        num_of_threads = (hw == 0u) ? 1u : static_cast<std::size_t>(hw);
+    // Global accumulator for next_bound (minimal f > bound).
+    std::atomic<int> global_next_bound(INF);
+
+    // Use the number of threads decided by the caller (BatchIDA).
+    std::size_t num_threads_effective = num_threads;
+
+    if (num_threads_effective == 0) {
+        num_threads_effective = 1;
     }
 
-    if (num_of_threads > works.size()) {
-        num_of_threads = works.size();
-    }
-    if (num_of_threads == 0) {
-        return false;
+    if (num_threads_effective > works.size()) {
+        num_threads_effective = works.size();
     }
 
-    // Worker function: each OS thread runs a local copy of Algorithm 3.
+
     auto worker_fn = [&](int /*thread_id*/) {
-        const auto num_stacks = static_cast<std::size_t>(work_num);
+        const std::size_t num_stacks = static_cast<std::size_t>(work_num);
 
-        // Each thread has its own array of logical stacks (Work pointers).
+        // Local logical stacks for this thread.
         std::vector<WorkType*> stacks(num_stacks, nullptr);
-        std::vector<bool> terminated(num_stacks, false);
+        std::vector<bool>      terminated(num_stacks, false);
 
+        // miss: number of logical stacks that have entered the terminated state
+        // in THIS thread (local Algorithm 3 instance).
         int local_miss = 0;
+
+        // counter: round-robin index over local stacks.
         std::size_t counter = 0;
 
-        // Initial acquire: for every stack slot, try to get a Work from the scheduler.
-        // This corresponds to "Initiate stack[workNum]" in the pseudocode.
+        // ---- Initial acquire: fill stack[0..work_num-1] once ----
+        // This follows the pseudocode "Initiate stack[workNum]".
         for (std::size_t i = 0; i < num_stacks; ++i) {
             WorkType* w = nullptr;
             if (!scheduler.acquire(w)) {
-                // No global Work available for this slot → treat as permanently terminated.
+                // No more global Work available for this slot.
                 terminated[i] = true;
                 ++local_miss;
             } else {
@@ -122,11 +113,16 @@ bool CB_DFS(Env& env,
             }
         }
 
-        // Main CB-DFS loop for this thread.
+        // If this thread did not get any active stack, it has nothing to do.
+        if (local_miss >= static_cast<int>(num_stacks)) {
+            return;
+        }
+
+        // ---- Main CB-DFS loop for this thread ----
         //
         // Stop when:
-        //   - a solution was found by any thread (found_solution == true), or
-        //   - all local stacks have entered the terminated state (local_miss == num_stacks).
+        //   - another thread found a solution (found_solution == true), or
+        //   - all local stacks in this thread have become terminated.
         while (!found_solution.load(std::memory_order_acquire) &&
                local_miss < static_cast<int>(num_stacks)) {
 
@@ -134,84 +130,79 @@ bool CB_DFS(Env& env,
             ++counter;
 
             if (terminated[i]) {
-                // This stack is permanently out of work; already counted in 'local_miss'.
+                // This stack is permanently dead in this thread.
                 continue;
             }
 
             WorkType*& w = stacks[i];
 
-            // If this stack currently has no Work, or the assigned Work is fully explored,
-            // try to acquire a new Work from the global scheduler.
+            // If there is no Work assigned to this stack, or the current Work
+            // has been fully explored, try to acquire a new subtree from the
+            // global scheduler.
             if (w == nullptr || w->is_done()) {
                 WorkType* new_w = nullptr;
                 if (!scheduler.acquire(new_w)) {
-                    // Scheduler has no more Work items to hand out at this point.
-                    // This logical stack is now terminated forever.
+                    // No more global Work to give to this local stack.
                     terminated[i] = true;
                     ++local_miss;
                     continue;
                 }
                 w = new_w;
-                // Keep terminated[i] == false and continue with the new subtree
             }
 
-            // At this point, 'w' points to an active subtree.
+            // At this point, w points to an active subtree assigned to stack i.
             int local_next = INF;
-            const bool found_here = DoIteration(env, *w, bound, heuristic, local_next);
+            bool found_here = DoIteration(env, *w, bound, heuristic, local_next);
 
             if (found_here) {
-                // Try to become the first thread that reports a solution.
+                // Try to be the first thread that reports a solution.
                 bool expected = false;
                 if (found_solution.compare_exchange_strong(
-                        expected, true,
+                        expected,
+                        true,
                         std::memory_order_acq_rel,
                         std::memory_order_relaxed)) {
                     // We are the first to mark that a goal was found.
-                    // The Work object 'w' now remembers the goal node.
-                    // BatchIDA will reconstruct and print the full path later.
+                    // The Work object 'w' has already recorded the goal node
+                    // (e.g. via mark_goal_current()).
                 }
-                return; // Stop this thread.
+                return; // stop this worker
             }
 
-            // No goal found in this step: update the global next_bound candidate
-            // with the local minimum f-value that exceeded 'bound'.
+            // No solution in this step: update the global next_bound candidate
+            // with the local minimal f-value that exceeded 'bound'.
             if (local_next < INF) {
                 int current = global_next_bound.load(std::memory_order_relaxed);
                 while (local_next < current &&
                        !global_next_bound.compare_exchange_weak(
-                               current,           // overwritten on failure
-                               local_next,
-                               std::memory_order_acq_rel,
-                               std::memory_order_relaxed)) {
-                    // Loop while local_next is still smaller than the current global value.
+                           current,
+                           local_next,
+                           std::memory_order_acq_rel,
+                           std::memory_order_relaxed)) {
+                    // On failure, 'current' has been updated with the latest value.
+                    // We retry while local_next is still smaller than 'current'.
                 }
             }
-
-            // Note: if this particular Work becomes fully explored (w->is_done())
-            // after this DoIteration call, we will detect it at the top of the loop
-            // and try to acquire a new Work for this stack slot.
         }
     };
 
-    // Spawn the CPU workers.
+    // Spawn OS threads.
     std::vector<std::thread> threads;
-    threads.reserve(num_threads);
-
-    for (std::size_t t = 0; t < num_threads; ++t) {
+    threads.reserve(num_threads_effective);
+    for (std::size_t t = 0; t < num_threads_effective; ++t) {
         threads.emplace_back(worker_fn, static_cast<int>(t));
     }
 
-    // Join all workers.
+
+    // Join all threads.
     for (auto& th : threads) {
         if (th.joinable()) {
             th.join();
         }
     }
 
-    // Report the minimal f > bound that any thread observed (or INF if none).
+    // Final next_bound is the global minimal f > bound over all pruned nodes.
     next_bound = global_next_bound.load(std::memory_order_relaxed);
-
-    // Return whether at least one thread found a goal in this iteration.
     return found_solution.load(std::memory_order_relaxed);
 }
 
@@ -227,9 +218,15 @@ bool CB_DFS(Env& env,
             int bound,
             HeuristicFn<Env> heuristic,
             int& next_bound,
-            int num_threads = 0)
+            std::size_t num_threads)
 {
-    return CB_DFS<Env, HeuristicFn<Env>>(env, works, work_num, bound, heuristic, next_bound, num_threads);
+    return CB_DFS<Env, HeuristicFn<Env>>(env,
+                                         works,
+                                         work_num,
+                                         bound,
+                                         heuristic,
+                                         next_bound,
+                                         num_threads);
 }
 
 } // namespace batch_ida

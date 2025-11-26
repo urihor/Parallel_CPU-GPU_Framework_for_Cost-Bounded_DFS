@@ -86,7 +86,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
     StpEnv env;
 
     int d_init   = 13;   // initial depth bound for GenerateWork
-    int work_num = 8;    // number of logical stacks
+    int work_num = 7;    // number of logical stacks
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
@@ -97,7 +97,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
 
         solution.clear();
 
-        const bool found = batch_ida::BatchIDA(env,
+         bool found = batch_ida::BatchIDA(env,
                                          start,              // non-const lvalue
                                          &PdbHeuristic78,    // int(const StpEnv::State&)
                                          d_init,
@@ -111,7 +111,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
             PrintSolution(env, start, solution);
             std::cout << std::endl;
         } else {
-            std::cout << "No solution found for board " << (board_num % 100) << "\n";
+            std::cout << "No solution found for board " << board_num << "\n";
         }
         ++board_num;
     }

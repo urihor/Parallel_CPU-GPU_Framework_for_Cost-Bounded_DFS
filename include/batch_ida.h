@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <limits>
+#include <thread>
 
 #include "work.h"
 #include "cb-dfs.h"
@@ -55,7 +56,8 @@ namespace batch_ida {
                   int d_init,
                   int work_num,
                   int &solution_cost,
-                  std::vector<typename Env::Action> &solution) {
+                  std::vector<typename Env::Action> &solution,
+                  int num_threads_hint = 0) {
         using Action = typename Env::Action;
         using State = typename Env::State;
 
@@ -82,64 +84,88 @@ namespace batch_ida {
             // Heuristic says "infinite" / unreachable.
             return false;
         }
+        // --------------------------------------------------
+        // 1) Generate initial works ONCE (Algorithm 2).
+        // --------------------------------------------------
+        std::vector<WorkFor<Env>> works;
+        works.reserve(1024); // arbitrary; can be tuned or removed
 
-        // IDA* outer loop.
-        while (true) {
-            // 1) Generate initial works (Algorithm 2).
-            std::vector<WorkFor<Env> > works;
-            works.reserve(1024); // arbitrary; can be tuned or removed
+        std::vector<Action> empty_history;
 
-            std::vector<Action> empty_history;
-
-            // These are used only inside GenerateWork. We ignore the returned
-            // path for now and rely on IDA* thresholds for the solution cost.
-            int best_len = INF;
-            std::vector<Action> best_sol;
-
-            /*GenerateWork(env,
+        // Used only inside GenerateWork{Dedup}.
+        int best_len = INF;
+        std::vector<Action> best_sol;
+        /*GenerateWork(env,
                          start,
                          d_init,
                          empty_history,
                          works,
                          best_len,
                          best_sol);*/
-            auto key_fn = [](const State& s) {
-                return s.pack();   // State must have pack()
-            };
-            std::unordered_set<std::size_t> seen;
-            GenerateWorkDedup(env,
-                         start,
-                         d_init,
-                         empty_history,
-                         works,
-                         seen,
-                            key_fn,
-                         best_len,
-                         best_sol);
+        auto key_fn = [](const State& s) {
+            return s.pack();   // State must have pack()
+        };
+        std::unordered_set<std::size_t> seen;
+        GenerateWorkDedup(env,
+                     start,
+                     d_init,
+                     empty_history,
+                     works,
+                     seen,
+                        key_fn,
+                     best_len,
+                     best_sol);
 
-            // If GenerateWork itself found a solution with cost <= bound,
-            // we can stop immediately.
-            if (best_len < INF && best_len <= bound) {
-                solution_cost = best_len;
-                solution = best_sol;
-                return true;
+        // If GenerateWork itself found a solution with cost <= bound,
+        // we can stop immediately.
+        if (best_len < INF && best_len <= bound) {
+            solution_cost = best_len;
+            solution = best_sol;
+            return true;
+        }
+        // If there are no works at all and GenerateWork did not find a
+        // solution, then there is nothing left to search.
+        if (works.empty()) {
+            return false;
+        }
+        // Decide how many OS threads to use once, based on the hint + hardware.
+        std::size_t num_threads;
+        if (num_threads_hint > 0) {
+            num_threads = static_cast<std::size_t>(num_threads_hint);
+        } else {
+            unsigned int hw = std::thread::hardware_concurrency();
+            num_threads = (hw == 0u) ? 1u : static_cast<std::size_t>(hw);
+        }
+
+        if (num_threads == 0) {
+            num_threads = 1;
+        }
+
+        // Do not run more threads than Works.
+        if (num_threads > works.size()) {
+            num_threads = works.size();
+        }
+        std::cout << "num of threads: "<<num_threads << std::endl;
+
+        // --------------------------------------------------
+        // 2) IDA* outer loop: reuse the same works each time.
+        // --------------------------------------------------
+        while (true) {
+            // Reset all works' search state for the new IDA* iteration.
+            for (auto &w : works) {
+                w.reset_for_new_iteration();
             }
 
-            // If there are no works at all and GenerateWork did not find a
-            // solution, then there is nothing left to search.
-            if (works.empty()) {
-                return false;
-            }
-
-            // 2) Run CB-DFS (Algorithm 3) on the generated works
-            //    with the current threshold 'bound'.
+            // Run CB-DFS (Algorithm 3) on the generated works
+            // with the current threshold 'bound'.
             int next_bound = INF;
             if (CB_DFS(env,
                        works,
                        work_num,
                        bound,
                        heuristic,
-                       next_bound)) {
+                       next_bound,
+                       num_threads)) {
                 // With an admissible heuristic and the standard IDA* bound
                 // update rule, the first solution found has cost == bound.
                 // Find which Work contains the goal and reconstruct its path.
@@ -180,13 +206,15 @@ namespace batch_ida {
                   int d_init,
                   int work_num,
                   int &solution_cost,
-                  std::vector<typename Env::Action> &solution) {
+                  std::vector<typename Env::Action> &solution,
+                  int num_threads_hint = 0) {
         return BatchIDA<Env, HeuristicFn<Env> >(env,
                                                 start,
                                                 heuristic,
                                                 d_init,
                                                 work_num,
                                                 solution_cost,
-                                                solution);
+                                                solution,
+                                                num_threads_hint);
     }
 } // namespace batch_ida

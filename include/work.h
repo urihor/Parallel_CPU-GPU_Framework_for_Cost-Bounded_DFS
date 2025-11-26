@@ -57,6 +57,21 @@ public:
         initialized_ = true;
     }
 
+    /// Reset this Work so it can be reused in a new IDA* iteration.
+    /// Keeps the logical root (root, init) but clears all search state.
+    void reset_for_new_iteration() noexcept {
+        // Next call to ensure_initialized() will rebuild the root node & stack.
+        initialized_ = false;
+
+        nodes_.clear();
+        stack_.clear();
+
+        current_node_index_ = -1;
+        goal_found_ = false;
+        goal_node_index_ = -1;
+    }
+
+
     std::size_t stack_size() const noexcept {
         return initialized_ ? stack_.size() : 0;
     }
