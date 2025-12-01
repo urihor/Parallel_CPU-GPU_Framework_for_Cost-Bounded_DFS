@@ -29,33 +29,42 @@ target_link_libraries(bootcamp_main PRIVATE bootcamp_core)
 set_target_properties(bootcamp_main PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
-include(FetchContent)
+# ---- Testing switch (lets Windows build main without downloading gtest) ----
+# If you want Windows to default to "no tests", keep this:
+if(WIN32 AND NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING OFF CACHE BOOL "Build tests" )
+endif()
 
-FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
+include(CTest)        # defines BUILD_TESTING option
+if(BUILD_TESTING)
+    include(FetchContent)
 
-set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(googletest)
+    FetchContent_Declare(
+            googletest
+            URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+    )
 
-enable_testing()
-include(GoogleTest)
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(googletest)
 
-add_executable(bootcamp_tests
-        tests/test_main.cpp
-        tests/tests.cpp
-        tests/test_generate_work.cpp
-        tests/test_do_iteration.cpp
-        tests/test_cb-dfs.cpp
-        tests/test_ida_star_korf_boards.cpp
-)
+    include(GoogleTest)
+    enable_testing()
 
-target_link_libraries(bootcamp_tests PRIVATE bootcamp_core GTest::gtest_main)
+    add_executable(bootcamp_tests
+            tests/test_main.cpp
+            tests/tests.cpp
+            tests/test_generate_work.cpp
+            tests/test_do_iteration.cpp
+            tests/test_cb-dfs.cpp
+            tests/test_ida_star_korf_boards.cpp
+    )
 
-gtest_discover_tests(bootcamp_tests)
+    target_link_libraries(bootcamp_tests PRIVATE bootcamp_core GTest::gtest_main)
 
-set_target_properties(bootcamp_tests PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
+    set_target_properties(bootcamp_tests PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    )
+
+    gtest_discover_tests(bootcamp_tests)
+endif()
