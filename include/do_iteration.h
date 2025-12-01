@@ -27,7 +27,7 @@ namespace batch_ida {
      *                For every pruned node with f > bound, we update:
      *                    next_bound = min(next_bound, f).
      *
-     * Returns true iff a goal state was found with f <= bound.
+     * Returns true if a goal state was found with f <= bound.
      */
     template<class Env, class Heuristic>
     bool DoIteration(Env &env,

@@ -29,10 +29,20 @@ target_link_libraries(bootcamp_main PRIVATE bootcamp_core)
 set_target_properties(bootcamp_main PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+include(FetchContent)
+
+FetchContent_Declare(
+        googletest
+        URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
 enable_testing()
+include(GoogleTest)
 
-# === tests main   ===
 add_executable(bootcamp_tests
         tests/test_main.cpp
         tests/tests.cpp
@@ -42,9 +52,9 @@ add_executable(bootcamp_tests
         tests/test_ida_star_korf_boards.cpp
 )
 
-target_link_libraries(bootcamp_tests PRIVATE bootcamp_core)
+target_link_libraries(bootcamp_tests PRIVATE bootcamp_core GTest::gtest_main)
 
-add_test(NAME bootcamp_tests_run COMMAND bootcamp_tests)
+gtest_discover_tests(bootcamp_tests)
 
 set_target_properties(bootcamp_tests PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin

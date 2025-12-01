@@ -76,7 +76,7 @@ static void test_goal_found_at_root() {
 
     constexpr int work_num = 4; // more "slots" than works is fine
 
-    bool found = batch_ida::CB_DFS(env, works, work_num, bound, &PdbHeuristic, next_bound);
+    bool found = batch_ida::CB_DFS(env, works, work_num, bound, &PdbHeuristic, next_bound, 1);
 
     assert(found);
     assert(next_bound == INF_INT);
@@ -116,7 +116,7 @@ static void test_find_goal_one_move_from_goal() {
 
     constexpr int work_num = 2;
 
-    const bool found = batch_ida::CB_DFS(env, works, work_num, bound, &PdbHeuristic, next_bound);
+    const bool found = batch_ida::CB_DFS(env, works, work_num, bound, &PdbHeuristic, next_bound, 1);
 
     assert(found);
 
@@ -158,7 +158,7 @@ static void test_threshold_aggregated_across_works() {
 
     constexpr int work_num = 2; // fewer slots than Works to test refill behavior
 
-    bool found = batch_ida::CB_DFS(env, works, work_num, bound, &OneHeuristic, next_bound);
+    bool found = batch_ida::CB_DFS(env, works, work_num, bound, &OneHeuristic, next_bound, 1);
 
     assert(!found);
     assert(next_bound == 1);

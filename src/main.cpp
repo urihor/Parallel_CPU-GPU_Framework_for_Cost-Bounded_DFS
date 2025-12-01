@@ -81,57 +81,63 @@ static int Heuristic0(const StpEnv::State &s) {
 
 // Run Batch IDA* on a list of boards using the 7/8 PDB heuristic
 void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
-    auto start = std::chrono::high_resolution_clock::now();
 
     StpEnv env;
 
     int d_init   = 13;   // initial depth bound for GenerateWork
-    int work_num = 8;    // number of logical stacks
+    int work_num = 7;    // number of logical stacks
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
+        for (const auto& board : boards) {
 
-    for (const auto& board : boards) {
-        // Make a mutable copy of the initial state for BatchIDA
-        auto start = board;   // or: auto start = board;
+            auto start_time = std::chrono::high_resolution_clock::now();
 
-        solution.clear();
+            // Make a mutable copy of the initial state for BatchIDA
+            auto start = board;   // or: auto start = board;
 
-        const bool found = batch_ida::BatchIDA(env,
-                                         start,              // non-const lvalue
-                                         &PdbHeuristic78,    // int(const StpEnv::State&)
-                                         d_init,
-                                         work_num,
-                                         solution_cost,
-                                         solution);
+            solution.clear();
 
-        if (found) {
-            std::cout << "board number: " << board_num << std::endl;
-            std::cout << "Solution cost = " << solution_cost << std::endl << std::endl;
-            PrintSolution(env, start, solution);
-            std::cout << std::endl;
-        } else {
-            std::cout << "No solution found for board " << (board_num % 100) << "\n";
+            bool found = batch_ida::BatchIDA(env,
+                                            start,              // non-const lvalue
+                                            &PdbHeuristic744,    // int(const StpEnv::State&)
+                                            d_init,
+                                            work_num,
+                                            solution_cost,
+                                            solution);
+
+            if (found) {
+                std::cout << "board number: " << board_num << std::endl;
+                std::cout << "Solution cost = " << solution_cost << std::endl;
+                //PrintSolution(env, start, solution);
+                auto end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> duration_s = end - start_time;
+                std::cout << "duration time: " << duration_s.count() <<" seconds";
+                std::cout << std::endl << std::endl;
+
+            } else {
+                std::cout << "No solution found for board " << board_num << std::endl << std::endl;
+            }
+            ++board_num;
         }
-        ++board_num;
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> duration_s = end - start;
 
-    std::cout << "duration time: " << duration_s.count() << " seconds" << std::endl;
-}
+    }
+
+
+
+
+
+
 
 // Force PDB tables to be loaded into RAM before timing starts
 static void preload_pdbs_to_ram() {
-    puzzle15_state goal;        // default goal state
+    puzzle15_state goal;// default goal state
 
     // Call the heuristics once (or a few times) to trigger lazy loading.
     // The volatile sink prevents the compiler from optimizing these calls away.
     volatile int sink = 0;
     sink += pdb15::heuristic_78_auto(goal);
-    // If you also use 7/4/4, you can warm that up too:
-    // sink += pdb15::heuristic_744_auto(goal);
-    (void)sink;
+    (void) sink;
 }
 
 
@@ -144,8 +150,17 @@ int main() {
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
         preload_pdbs_to_ram();
+        boards = MakeKorf100StatesForOurGoal();
+        std::cout<< std::endl << std::endl;
+        std::cout << "=============================================" << std::endl;
+        std::cout << "using pdb 744" << std::endl;
+        std::cout << "=============================================" << std::endl;
+        std::cout<< std::endl << std::endl;
 
         run_batch_ida_example(boards);
+        std::vector<puzzle15_state> boards2;
+        boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
+        //run_batch_ida_example(boards2);
 
         std::cout << "[bootcamp_main done]\n";
 
