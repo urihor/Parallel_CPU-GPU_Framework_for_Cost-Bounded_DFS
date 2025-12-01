@@ -103,18 +103,18 @@ namespace batch_ida {
                          best_len,
                          best_sol);*/
         auto key_fn = [](const State& s) {
-            return s.pack();   // State must have pack()
+            return s.pack(); // State must have pack()
         };
         std::unordered_set<std::size_t> seen;
         GenerateWorkDedup(env,
-                     start,
-                     d_init,
-                     empty_history,
-                     works,
-                     seen,
-                        key_fn,
-                     best_len,
-                     best_sol);
+                          start,
+                          d_init,
+                          empty_history,
+                          works,
+                          seen,
+                          key_fn,
+                          best_len,
+                          best_sol);
 
         // If GenerateWork itself found a solution with cost <= bound,
         // we can stop immediately.
@@ -145,38 +145,61 @@ namespace batch_ida {
         if (num_threads > works.size()) {
             num_threads = works.size();
         }
-        std::cout << "num of threads: "<<num_threads << std::endl;
+        //std::cout << "num of threads: "<<num_threads << std::endl;
 
         // --------------------------------------------------
         // 2) IDA* outer loop: reuse the same works each time.
         // --------------------------------------------------
         while (true) {
             // Reset all works' search state for the new IDA* iteration.
-            for (auto &w : works) {
+            for (auto &w: works) {
                 w.reset_for_new_iteration();
             }
 
             // Run CB-DFS (Algorithm 3) on the generated works
             // with the current threshold 'bound'.
             int next_bound = INF;
-            if (CB_DFS(env,
-                       works,
-                       work_num,
-                       bound,
-                       heuristic,
-                       next_bound,
-                       num_threads)) {
-                // With an admissible heuristic and the standard IDA* bound
-                // update rule, the first solution found has cost == bound.
-                // Find which Work contains the goal and reconstruct its path.
-                for (auto &w: works) {
-                    if (w.goal_found()) {
-                        solution.clear();
-                        w.reconstruct_full_path(solution);
-                        solution_cost = static_cast<int>(solution.size());
-                        return true;
+            try {
+                if (CB_DFS(env,
+                           works,
+                           work_num,
+                           bound,
+                           heuristic,
+                           next_bound,
+                           num_threads)) {
+                    // With an admissible heuristic and the standard IDA* bound
+                    // update rule, the first solution found has cost == bound.
+                    // Find which Work contains the goal and reconstruct its path.
+                    for (auto &w: works) {
+                        if (w.goal_found()) {
+                            solution.clear();
+                            w.reconstruct_full_path(solution);
+                            solution_cost = static_cast<int>(solution.size());
+
+                            std::uint64_t total_expanded = 0;
+                            for (const auto &ww: works) {
+                                total_expanded += ww.expanded_nodes();
+                            }
+
+                            std::cout << "Nodes expanded for this board: "
+                                    << total_expanded << std::endl;
+
+                            return true;
+                        }
                     }
                 }
+            } catch (const std::bad_alloc &) {
+                // אם עפים על חוסר זיכרון באמצע CB_DFS –
+                // עדיין אפשר לסכם את הצמתים שכבר הורחבו באותם works
+                std::uint64_t total_expanded = 0;
+                for (const auto &w: works) {
+                    total_expanded += w.expanded_nodes();
+                }
+
+                std::cerr << "Out of memory on this board after expanding "
+                        << total_expanded << " nodes" << std::endl;
+
+                throw; // או return false; אם אתה מעדיף לא לזרוק הלאה
             }
             // No solution within 'bound'. If next_bound stayed INF, it means
             // there were no nodes with f > bound, so increasing the bound

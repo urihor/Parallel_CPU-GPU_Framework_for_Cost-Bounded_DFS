@@ -175,6 +175,10 @@ public:
         std::reverse(tail.begin(), tail.end());
         out.insert(out.end(), tail.begin(), tail.end());
     }
+    std::size_t expanded_nodes() const noexcept {
+        return nodes_.size();
+    }
+
 
 private:
     std::vector<Node> nodes_;  // all nodes in this Work's search tree
