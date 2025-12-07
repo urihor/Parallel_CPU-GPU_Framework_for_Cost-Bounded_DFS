@@ -100,7 +100,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
 
             bool found = batch_ida::BatchIDA(env,
                                             start,              // non-const lvalue
-                                            &PdbHeuristic744,    // int(const StpEnv::State&)
+                                            &PdbHeuristic78,    // int(const StpEnv::State&)
                                             d_init,
                                             work_num,
                                             solution_cost,
@@ -122,12 +122,6 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
         }
 
     }
-
-
-
-
-
-
 
 // Force PDB tables to be loaded into RAM before timing starts
 static void preload_pdbs_to_ram() {
@@ -153,7 +147,7 @@ int main() {
         boards = MakeKorf100StatesForOurGoal();
         std::cout<< std::endl << std::endl;
         std::cout << "=============================================" << std::endl;
-        std::cout << "using pdb 744" << std::endl;
+        std::cout << "using pdb 78" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout<< std::endl << std::endl;
 
