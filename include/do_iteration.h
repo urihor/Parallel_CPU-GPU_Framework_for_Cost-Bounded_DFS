@@ -1,93 +1,138 @@
 #pragma once
-
-#include <limits>
+#include "neural_batch_service.h"
 #include "work.h"
 
 namespace batch_ida {
 
-    template<class Env>
-    using HeuristicFn = int (*)(const typename Env::State &);
+// Type alias for a simple heuristic function pointer:
+//   int h(const Env::State&);
+template<class Env>
+using HeuristicFn = int (*)(const typename Env::State &);
 
-    template<class Env, class Heuristic>
-    bool DoIteration(Env &env,
-                     WorkFor<Env> &work,
-                     int bound,
-                     Heuristic heuristic,
-                     int &next_bound)
-    {
-        using State  = typename Env::State;
-        using Action = typename Env::Action;
+// Subtree expansion (Algorithm 4-style when neural batching is enabled).
+//
+// When batch_ida::neural_batch_enabled() == false, this function behaves like
+// the original version: synchronous heuristic evaluation and expanding a
+// single child per call.
+//
+// When batch_ida::neural_batch_enabled() == true, the heuristic values h(s)
+// are obtained from NeuralBatchService in a non-blocking way:
+//
+//   * If h(s) is not ready yet, we enqueue s into the batch and return false.
+//     The calling CB-DFS thread will then try a different Work.
+//   * Once h(s) is ready, we expand s, generate all its children, push them
+//     onto the local DFS stack, and enqueue each child into the batch so that
+//     its heuristic can be computed while other subtrees are explored.
+//
+template<class Env, class Heuristic>
+bool DoIteration(
+        Env &env,
+        WorkFor<Env> &work,
+        const int bound,
+        Heuristic heuristic,
+        int &next_bound
+) {
+    using State = typename Env::State;
 
-        constexpr int INF = std::numeric_limits<int>::max();
-        next_bound = INF;
-
-        if (work.is_done() || work.goal_found()) {
-            return work.goal_found();
-        }
-
-        work.ensure_initialized();
-
-        while (true) {
-            if (!work.has_current()) {
-                // No more nodes left in this subtree.
-                return false;
-            }
-
-            auto &frame = work.current_frame();
-
-            if (!frame.expanded) {
-                const State &s = frame.state;
-                const int   g  = frame.g;
-                const int   h  = heuristic(s);
-                const int   f  = g + h;
-
-                work.increment_expanded();
-
-                if (f > bound) {
-                    if (f < next_bound) {
-                        next_bound = f;
-                    }
-                    work.pop_frame();
-                    continue;
-                }
-
-                if (env.IsGoal(s)) {
-                    work.mark_goal_current();
-                    return true;
-                }
-
-                frame.actions = env.GetActions(s);
-                frame.next_child_index = 0;
-                frame.expanded = true;
-            }
-
-            if (frame.next_child_index < frame.actions.size()) {
-                const Action a = frame.actions[frame.next_child_index++];
-
-                State child = frame.state;
-                env.ApplyAction(child, a);
-
-                const int child_g = frame.g + 1; // uniform cost
-                work.push_child(child, child_g, a);
-
-                // Only one new node per call.
-                return false;
-            } else {
-                // No more children for this node: backtrack.
-                work.pop_frame();
-                // loop again to find another node or finish the subtree
-            }
-        }
+    if (!work.has_current()) {
+        return false;
     }
 
-    template<class Env>
-    bool DoIteration(Env &env,
-                     WorkFor<Env> &work,
-                     int bound,
-                     HeuristicFn<Env> heuristic,
-                     int &next_bound)
-    {
-        return DoIteration<Env, HeuristicFn<Env>>(env, work, bound, heuristic, next_bound);
+    auto &frame = work.current_frame();
+    const State &s = frame.state;
+    const int g = frame.g;
+
+    // Decide whether we are in "batched neural" mode or plain synchronous mode.
+    NeuralBatchService* batch_service = nullptr;
+    if (neural_batch_enabled()) {
+        batch_service = &NeuralBatchService::instance();
     }
+
+    int h = 0;
+
+    if (batch_service && batch_service->is_running()) {
+        // Non-blocking: try to read h(s) from the batch service.
+        if (!batch_service->try_get_h(s, h)) {
+            // h(s) is not ready yet; enqueue s (idempotent) and give this
+            // CPU thread a chance to work on another logical stack.
+            batch_service->enqueue(s);
+            return false;
+        }
+    } else {
+        // Fallback: normal synchronous heuristic evaluation.
+        h = heuristic(s);
+    }
+
+    const int f = g + h;
+
+    // If f > bound, update next_bound and prune.
+    if (f > bound) {
+        next_bound = std::min(next_bound, f);
+        work.pop_frame();
+        return false;
+    }
+
+    // Goal test.
+    if (env.IsGoal(s)) {
+        work.mark_goal_current();
+        return true;
+    }
+
+    // Prepare expansion if needed.
+    if (!frame.expanded) {
+        frame.actions.clear();
+        env.GetActions(s);
+        frame.next_child_index = 0;
+        frame.expanded = true;
+        work.increment_expanded();
+    }
+
+    // Expansion step.
+    if (frame.next_child_index < frame.actions.size()) {
+        if (batch_service && batch_service->is_running()) {
+            // --- Neural batched mode (Algorithm 4 style) ---
+            //
+            // We expand *all* children of s in this call, and enqueue each
+            // child into the batch so that its heuristic can be computed on
+            // the GPU while CB-DFS explores other subtrees.
+
+            for (; frame.next_child_index < frame.actions.size();
+                   ++frame.next_child_index) {
+                const auto action = frame.actions[frame.next_child_index];
+
+                State child = s;
+                env.ApplyAction(child, action);
+                const int child_g = g + 1;  // unit-cost move in STP
+
+                // Schedule child for batched heuristic evaluation.
+                batch_service->enqueue(child);
+
+                // Push the child onto the local DFS stack.
+                work.push_child(std::move(child), child_g, action);
+            }
+
+            // We have fully expanded s; backtrack from this frame.
+            work.pop_frame();
+        } else {
+            // --- Original behaviour (no batching) ---
+            //
+            // Expand only one child per call for better interleaving between
+            // works when using a purely synchronous heuristic.
+
+            const auto action = frame.actions[frame.next_child_index++];
+
+            State child = s;
+            env.ApplyAction(child, action);
+            const int child_g = g + 1;  // unit-cost move in STP
+
+            work.push_child(std::move(child), child_g, action);
+        }
+    } else {
+        // No more children => backtrack.
+        work.pop_frame();
+    }
+
+    return false;
+}
 
 } // namespace batch_ida

@@ -87,7 +87,7 @@ namespace batch_ida {
         // --------------------------------------------------
         // 1) Generate initial works ONCE (Algorithm 2).
         // --------------------------------------------------
-        std::vector<WorkFor<Env>> works;
+        std::vector<WorkFor<Env> > works;
         works.reserve(1024); // arbitrary; can be tuned or removed
 
         std::vector<Action> empty_history;
@@ -102,7 +102,7 @@ namespace batch_ida {
                          works,
                          best_len,
                          best_sol);*/
-        auto key_fn = [](const State& s) {
+        auto key_fn = [](const State &s) {
             return s.pack(); // State must have pack()
         };
         std::unordered_set<std::size_t> seen;
@@ -159,48 +159,36 @@ namespace batch_ida {
             // Run CB-DFS (Algorithm 3) on the generated works
             // with the current threshold 'bound'.
             int next_bound = INF;
-            try {
-                if (CB_DFS(env,
-                           works,
-                           work_num,
-                           bound,
-                           heuristic,
-                           next_bound,
-                           num_threads)) {
-                    // With an admissible heuristic and the standard IDA* bound
-                    // update rule, the first solution found has cost == bound.
-                    // Find which Work contains the goal and reconstruct its path.
-                    for (auto &w: works) {
-                        if (w.goal_found()) {
-                            solution.clear();
-                            w.reconstruct_full_path(solution);
-                            solution_cost = static_cast<int>(solution.size());
 
-                            std::uint64_t total_expanded = 0;
-                            for (const auto &ww: works) {
-                                total_expanded += ww.expanded_nodes();
-                            }
+            if (CB_DFS(env,
+                       works,
+                       work_num,
+                       bound,
+                       heuristic,
+                       next_bound,
+                       num_threads)) {
+                // With an admissible heuristic and the standard IDA* bound
+                // update rule, the first solution found has cost == bound.
+                // Find which Work contains the goal and reconstruct its path.
+                for (auto &w: works) {
+                    if (w.goal_found()) {
+                        solution.clear();
+                        w.reconstruct_full_path(solution);
+                        solution_cost = static_cast<int>(solution.size());
 
-                            std::cout << "Nodes expanded for this board: "
-                                    << total_expanded << std::endl;
-
-                            return true;
+                        std::uint64_t total_expanded = 0;
+                        for (const auto &ww: works) {
+                            total_expanded += ww.expanded_nodes();
                         }
+
+                        std::cout << "Nodes expanded for this board: "
+                                << total_expanded << std::endl;
+
+                        return true;
                     }
                 }
-            } catch (const std::bad_alloc &) {
-                // אם עפים על חוסר זיכרון באמצע CB_DFS –
-                // עדיין אפשר לסכם את הצמתים שכבר הורחבו באותם works
-                std::uint64_t total_expanded = 0;
-                for (const auto &w: works) {
-                    total_expanded += w.expanded_nodes();
-                }
-
-                std::cerr << "Out of memory on this board after expanding "
-                        << total_expanded << " nodes" << std::endl;
-
-                throw; // או return false; אם אתה מעדיף לא לזרוק הלאה
             }
+
             // No solution within 'bound'. If next_bound stayed INF, it means
             // there were no nodes with f > bound, so increasing the bound
             // will not reveal new nodes → no solution exists.

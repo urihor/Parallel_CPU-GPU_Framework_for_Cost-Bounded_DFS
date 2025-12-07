@@ -9,6 +9,8 @@
 #include <array>
 #include <vector>
 #include <cstdint>
+#include <torch/torch.h>
+#include <torch/script.h>
 
 #include "puzzle_env.h"
 #include "pdb15.h"
@@ -16,6 +18,8 @@
 #include "batch_ida.h"
 #include "solution_printer.h"
 #include "korf_examples.h"
+#include "neural_delta_15.h"
+#include "manhattan_15.h"
 
 
 namespace fs = std::filesystem;
@@ -89,6 +93,20 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
+    // Decide which heuristic to pass to BatchIDA.
+    int (*heuristic)(const StpEnv::State&) = &PdbHeuristic78;
+
+    if (batch_ida::neural_batch_enabled() &&
+        NeuralBatchService::instance().is_running()) {
+        // In neural-batched mode, the synchronous heuristic is set to 0.
+        // The actual h_M values are supplied asynchronously via the
+        // NeuralBatchService (Algorithm 4 style).
+        heuristic = &Heuristic0;
+        std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
+        } else {
+            std::cout << "[run_batch_ida_example] Using 7/8 PDB heuristic (no neural batching)\n";
+        }
+
         for (const auto& board : boards) {
 
             auto start_time = std::chrono::high_resolution_clock::now();
@@ -100,7 +118,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
 
             bool found = batch_ida::BatchIDA(env,
                                             start,              // non-const lvalue
-                                            &PdbHeuristic78,    // int(const StpEnv::State&)
+                                            heuristic,    // int(const StpEnv::State&)
                                             d_init,
                                             work_num,
                                             solution_cost,
@@ -143,18 +161,56 @@ int main() {
         // Prepare the 100 Korf instances mapped to our goal
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
-        preload_pdbs_to_ram();
+        //preload_pdbs_to_ram();
         boards = MakeKorf100StatesForOurGoal();
         std::cout<< std::endl << std::endl;
         std::cout << "=============================================" << std::endl;
-        std::cout << "using pdb 78" << std::endl;
+        std::cout << "using NN" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout<< std::endl << std::endl;
+        // --- GPU / CUDA sanity check ---
+        std::cout << "torch::cuda::is_available() = "
+                  << (torch::cuda::is_available() ? "true" : "false")
+                  << std::endl;
 
+        torch::Device device = torch::cuda::is_available()
+                               ? torch::Device(torch::kCUDA)
+                               : torch::Device(torch::kCPU);
+
+        std::cout << "Using device: " << (device.is_cuda() ? "CUDA" : "CPU") << std::endl;
+
+        // ניצור טנזור רנדומלי על ה-device שבחרנו ונבדוק מה הוא מדפיס
+        auto x = torch::rand({4, 7, 4, 4}, device);
+        std::cout << "x.device() = " << x.device() << std::endl;
+        using neural15::NeuralDelta15;
+
+        std::cout << "torch::cuda::is_available() = "
+                  << (torch::cuda::is_available() ? "true" : "false") << std::endl;
+
+        // אתחול הרשת – "." = התיקייה הנוכחית, כלומר bin
+        NeuralDelta15::instance().initialize(".");
+
+        // צור לוח לדוגמה – למשל מצב ההתחלה הקלאסי:
+        puzzle15_state s{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
+
+
+        int md = manhattan_15(s);  // תתאים לשם האמיתי אצלך
+
+        int d1 = NeuralDelta15::instance().delta_1_7(s);
+        int d2 = NeuralDelta15::instance().delta_8_15(s);
+        int hM = NeuralDelta15::instance().h_M(s, md);
+
+        std::cout << "Manhattan(s) = " << md << "\n";
+        std::cout << "delta_1_7(s) = " << d1 << "\n";
+        std::cout << "delta_8_15(s) = " << d2 << "\n";
+        std::cout << "h_M(s)       = " << hM << "\n";
+
+        neural15::init_default_batch_service();
         run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
-        boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
-        //run_batch_ida_example(boards2);
+        boards2.emplace_back(puzzle15_state{2,7,4,8,1,3,6,0,5,10,15,11,9,13,14,12});
+        //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
+        run_batch_ida_example(boards2);
 
         std::cout << "[bootcamp_main done]\n";
 
