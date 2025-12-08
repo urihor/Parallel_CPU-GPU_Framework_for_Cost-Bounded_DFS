@@ -1,6 +1,7 @@
 // ===============================
 // File: pdb15.h
 // ===============================
+
 #pragma once
 #include <cstdint>
 #include <string>
@@ -23,14 +24,13 @@
 #include "puzzle15_state.h"
 
 // Public API for building & querying disjoint PDBs for the 15‑puzzle.
-// - No command-line; call functions directly from your code.
 // - Accepts/returns puzzle15_state for lookups.
 // - Supports nibble-packed (4-bit) or byte (8-bit) storage via PDB_BITS.
 //
 // Notes:
 // * Pattern is a list of tile numbers (1..15). The blank (0) is implicit.
 // * Pattern size must be 1..8 (the builder supports up to 8 tiles).
-// * Storage grows with P(16, k+1). For k=8, this is huge; consider 7/4/4.
+// * Storage grows with P(16, k+1). For k=8, this is huge;
 
 #ifndef PDB_BITS
 #define PDB_BITS 8  // 4 for nibble-packed (values saturate at 15), or 8 for 1 byte/entry
@@ -46,14 +46,14 @@ namespace pdb15 {
         // Construct from raw file bytes (previously saved)
         static PackedPDB from_file_bytes(std::uint64_t n_states, const std::vector<std::uint8_t> &bytes);
 
-        inline std::uint8_t get(std::uint64_t idx) const;
+        [[nodiscard]] inline std::uint8_t get(std::uint64_t idx) const;
 
         inline void set(std::uint64_t idx, std::uint8_t val);
 
-        inline std::uint64_t size() const { return size_; }
+        [[nodiscard]] inline std::uint64_t size() const { return size_; }
 
-        bool save(const std::string &path, bool with_progress = true) const; // כתיבה במנות
-        bool save_atomic(const std::string &path, bool with_progress = true) const; // path.tmp ואז rename
+        [[nodiscard]] bool save(const std::string &path, bool with_progress = true) const; // write in chunks
+        [[nodiscard]] bool save_atomic(const std::string &path, bool with_progress = true) const; // path.tmp then rename
 
     private:
         std::uint64_t size_;
@@ -62,7 +62,7 @@ namespace pdb15 {
 #else
         std::vector<std::uint8_t> data4_; // 2 entries per byte
 #endif
-        friend PackedPDB load_pdb_from_file(const std::string &path, int k); // כדי לטעון ישירות לבאפר
+        friend PackedPDB load_pdb_from_file(const std::string &path, int k); // load directly to buffer
     };
 
     // ---- Building / Loading -------------------------------------------------------
@@ -92,7 +92,7 @@ namespace pdb15 {
     void build_744(const std::string &outA, const std::string &outB, const std::string &outC,
                    bool verbose = true);
 
-    // Convenience: additive lookup for 7/4/4 when you have the three file paths.
+    // Convenience: additive lookup for 7/4/4 when have the three file paths.
     int heuristic_744_from_files(const puzzle15_state &s,
                                  const std::string &pathA,
                                  const std::string &pathB,

@@ -9,26 +9,25 @@
 #include "puzzle_actions.h"
 
 struct StpEnv final : i_env<puzzle15_state, StpMove> {
-    using State  = puzzle15_state;
+    using State = puzzle15_state;
     using Action = StpMove;
 
-    // GetActions מחזיר את המהלכים החוקיים לפי מיקום החור
-    std::vector<Action> GetActions(const State& s) override;
+    // return all the legal moves according to the blank position
+    std::vector<Action> GetActions(const State &s) override;
 
-    // מפעיל מהלך אחד: מזיז את החור לשכן הרלוונטי
-    void ApplyAction(State& s, Action a) override;
+    // apply one move on the state, move the blank to the relevant neighbor
+    void ApplyAction(State &s, Action a) override;
 
-    // מבטל מהלך: מפעיל את המהלך ההופכי
-    void UndoAction(State& s, Action a) override;
+    // undo a move : apply the inverse move
+    void UndoAction(State &s, Action a) override;
 
-    // בדיקת מטרה מהירה ללא הקצאות
-    [[nodiscard]] bool IsGoal(const State& s) const override;
+    // is the state is the goal state
+    [[nodiscard]] bool IsGoal(const State &s) const override;
 
-    [[nodiscard]] bool IsSolvable(const State& s) const override;
-
+    // is the board is solvable
+    [[nodiscard]] bool IsSolvable(const State &s) const override;
 
 private:
-
-    // אינדקס השכן שמחליפים איתו (מניח שהמהלך חוקי)
-    [[nodiscard]] static puzzle15_state::Index NeighborIndex(const State& s, Action a);
+    // return the index of the neighbor that we swap with (assume the move is legal)
+    [[nodiscard]] static puzzle15_state::Index NeighborIndex(const State &s, Action a);
 };

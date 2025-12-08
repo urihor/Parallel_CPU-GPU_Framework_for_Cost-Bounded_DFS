@@ -139,7 +139,7 @@ int main() {
     try {
         // Build / verify the 7/8 PDBs in the current build directory
         const fs::path out_dir = fs::current_path();
-        ensure_78(out_dir);
+        //ensure_78(out_dir);
         // Prepare the 100 Korf instances mapped to our goal
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
