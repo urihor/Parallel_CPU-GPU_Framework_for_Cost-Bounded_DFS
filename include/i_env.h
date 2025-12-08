@@ -5,14 +5,14 @@
 #pragma once
 #include <vector>
 
-template<class S, class A>
+/// interface of environment
+template<class State, class Action>
 struct i_env {
-    // כל הסרצ'ר עובד מול הממשק הזה בלבד:
-    virtual std::vector<A> GetActions(const S& s) = 0; // מהלכים חוקיים ממצב s
-    virtual void ApplyAction(S& s, A a) = 0;           // מבצע מהלך אחד (in-place)
-    virtual void UndoAction(S& s, A a) = 0;            // מבטל מהלך
-    virtual bool IsGoal(const S& s) const = 0;         // האם s הוא מטרה
-    virtual bool IsSolvable(const S& s) const = 0;
+    virtual std::vector<Action> GetActions(const State &s) = 0; // legal moves from state s
+    virtual void ApplyAction(State &s, Action a) = 0; // apply one move (in-place)
+    virtual void UndoAction(State &s, Action a) = 0; // undo a move
+    virtual bool IsGoal(const State &s) const = 0; // is s the goal state
+    virtual bool IsSolvable(const State &s) const = 0; // is the puzzle solvable
 
     virtual ~i_env() = default;
 };
