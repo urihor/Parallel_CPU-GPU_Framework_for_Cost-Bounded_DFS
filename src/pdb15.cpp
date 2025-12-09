@@ -421,7 +421,8 @@ namespace pdb15 {
                               const std::string &out_path,
                               bool verbose) {
         const int k = static_cast<int>(pattern_tiles.size());
-        if (k <= 0 || k > 8) throw std::runtime_error("pattern size must be 1..8");
+        if (k <= 0 || k > 8)
+            throw std::runtime_error("pattern size must be 1..8");
 
         int max_deg = 0;
         // Precomputed neighbors table: for each cell, which cells are reachable
@@ -492,7 +493,8 @@ namespace pdb15 {
         constexpr std::uint64_t PROGRESS_EVERY = 50'000'000ULL;
         std::uint64_t next_report = PROGRESS_EVERY;
         std::uint64_t expanded = 0, relaxed = 0;
-        if (verbose) std::cout.setf(std::ios::unitbuf);
+        if (verbose)
+            std::cout.setf(std::ios::unitbuf);
 
         // 0–1 BFS main loop.
         // We repeatedly take a state from the front of the deque, relax all
@@ -508,7 +510,8 @@ namespace pdb15 {
             // Try moving the blank in each of the 4 directions.
             for (int di = 0; di < 4; ++di) {
                 int nb = neighbors[cur.blank][di];
-                if (nb < 0) continue; // invalid move from this cell
+                if (nb < 0)
+                    continue; // invalid move from this cell
 
                 Node nxt = cur;
                 int j = contains_tile_at(cur, nb);
@@ -573,15 +576,35 @@ namespace pdb15 {
         if (!dist.save_atomic(out_path, /*with_progress=*/true)) {
             throw std::runtime_error("failed to write PDB file: " + out_path);
         }
-        if (verbose) std::cout << "[build] done.\n";
+        if (verbose)
+            std::cout << "[build] done.\n";
 
         return dist;
     }
 
 
     // ---- Lookup & Additive --------------------------------------------------------
+    //
+    // This section provides:
+    //   * lookup(...) – query a single PDB for a given pattern and state.
+    //   * additive_heuristic(...) – sum of several disjoint PDBs (additive heuristic).
+    //   * helper builders (build_744, build_78) for standard tile splits.
+    //   * convenience functions that load PDBs from files and evaluate a heuristic.
+    //
 
-    std::uint8_t lookup(const PackedPDB &pdb, const Pattern &pattern_tiles, const puzzle15_state &s) {
+    // Look up the PDB value for a given state and pattern.
+    //
+    // Steps:
+    //   1. Build an abstract Node that contains the positions of the pattern tiles
+    //      and the blank for the given global state s.
+    //   2. Convert that Node into a unique integer index using rank_partial(...).
+    //   3. Return pdb.get(index).
+    //
+    // The returned value is the precomputed distance (in moves) from this abstract
+    // pattern state to the goal, according to the chosen pattern and PDB.
+    std::uint8_t lookup(const PackedPDB &pdb,
+                        const Pattern &pattern_tiles,
+                        const puzzle15_state &s) {
         const int k = static_cast<int>(pattern_tiles.size());
         const int m = k + 1;
         const auto weights = ::build_radix_weights(m);
@@ -589,25 +612,50 @@ namespace pdb15 {
         Node n = ::node_from_state_for_pattern(s, pattern_tiles);
         std::vector<int> seq;
         seq.reserve(m);
-        for (int i = 0; i < k; ++i) seq.push_back(static_cast<int>(n.pos[static_cast<std::size_t>(i)]));
+        for (int i = 0; i < k; ++i)
+            seq.push_back(static_cast<int>(n.pos[static_cast<std::size_t>(i)]));
         seq.push_back(static_cast<int>(n.blank));
+
         std::uint64_t idx = ::rank_partial(seq, weights);
         return pdb.get(idx);
     }
 
-    int additive_heuristic(const puzzle15_state &s,
-                           const std::vector<std::pair<const PackedPDB *, Pattern> > &dbs) {
+    // Compute an additive heuristic as the sum of multiple disjoint PDBs.
+    //
+    // Parameters:
+    //   s   - full 15-puzzle state.
+    //   dbs - vector of (PDB pointer, Pattern) pairs. Each Pattern defines which
+    //         tiles the corresponding PDB covers. The patterns should be mutually
+    //         disjoint for the heuristic to be strictly admissible.
+    //
+    // For each pair (pdb, pat), we call lookup(*pdb, pat, s) and sum the results.
+    // If any PDB pointer is null, an exception is thrown.
+    int additive_heuristic(
+        const puzzle15_state &s,
+        const std::vector<std::pair<const PackedPDB *, Pattern> > &dbs) {
         int sum = 0;
         for (const auto &pr: dbs) {
             const PackedPDB *pdb = pr.first;
             const Pattern &pat = pr.second;
-            if (!pdb) throw std::invalid_argument("additive_heuristic: null PDB pointer");
+            if (!pdb)
+                throw std::invalid_argument("additive_heuristic: null PDB pointer");
             sum += static_cast<int>(lookup(*pdb, pat, s));
         }
         return sum;
     }
 
-    void build_744(const std::string &outA, const std::string &outB, const std::string &outC,
+    // Build a 7-4-4 pattern database set and write them to three files.
+    //
+    // Patterns:
+    //   A: { 1,  2,  3,  4,  5,  6,  7}
+    //   B: { 8,  9, 10, 11}
+    //   C: {12, 13, 14, 15}
+    //
+    // Each PDB is built using the 0–1 BFS builder (build_pdb_01bfs),
+    // and stored to outA / outB / outC.
+    void build_744(const std::string &outA,
+                   const std::string &outB,
+                   const std::string &outC,
                    bool verbose) {
         Pattern A{1, 2, 3, 4, 5, 6, 7};
         Pattern B{8, 9, 10, 11};
@@ -617,6 +665,12 @@ namespace pdb15 {
         (void) build_pdb_01bfs(C, outC, verbose);
     }
 
+    // Convenience function: load the 7-4-4 PDBs from files and return the sum
+    // of the three PDB lookups for the given state.
+    //
+    // This is equivalent to:
+    //   * load PDB for A, B, C from pathA, pathB, pathC
+    //   * return additive_heuristic(s, { (A,PDB_A), (B,PDB_B), (C,PDB_C) })
     int heuristic_744_from_files(const puzzle15_state &s,
                                  const std::string &pathA,
                                  const std::string &pathB,
@@ -630,21 +684,47 @@ namespace pdb15 {
         return additive_heuristic(s, {{&pdbA, A}, {&pdbB, B}, {&pdbC, C}});
     }
 
-    void build_78(const std::string &out7, const std::string &out8, bool verbose) {
+    // Build a 7-8 pattern database set and write to two files.
+    //
+    // Patterns:
+    //   P7: { 1,  2,  3,  4,  5,  6,  7}
+    //   P8: { 8,  9, 10, 11, 12, 13, 14, 15}
+    //
+    // Each PDB is built using 0–1 BFS and stored to out7 / out8.
+    void build_78(const std::string &out7,
+                  const std::string &out8,
+                  bool verbose) {
         Pattern P7{1, 2, 3, 4, 5, 6, 7};
         Pattern P8{8, 9, 10, 11, 12, 13, 14, 15};
         (void) build_pdb_01bfs(P7, out7, verbose);
         (void) build_pdb_01bfs(P8, out8, verbose);
     }
 
-    int heuristic_78(const puzzle15_state &s, const PackedPDB &pdb7, const PackedPDB &pdb8) {
+    // Evaluate the 7-8 additive heuristic given two already-loaded PDBs.
+    //
+    // This uses the fixed partition:
+    //   P7: tiles 1..7
+    //   P8: tiles 8..15
+    // and returns lookup(pdb7, P7, s) + lookup(pdb8, P8, s).
+    int heuristic_78(const puzzle15_state &s,
+                     const PackedPDB &pdb7,
+                     const PackedPDB &pdb8) {
         Pattern P7{1, 2, 3, 4, 5, 6, 7};
         Pattern P8{8, 9, 10, 11, 12, 13, 14, 15};
-        return static_cast<int>(lookup(pdb7, P7, s)) + static_cast<int>(lookup(pdb8, P8, s));
+        return static_cast<int>(lookup(pdb7, P7, s)) +
+               static_cast<int>(lookup(pdb8, P8, s));
     }
 
+    // Evaluate the 7-4-4 additive heuristic given three already-loaded PDBs.
+    //
+    // Fixed partition:
+    //   A: tiles 1..7
+    //   B: tiles  8..11
+    //   C: tiles 12..15
     int heuristic_744(const puzzle15_state &s,
-                      const PackedPDB &pdbA, const PackedPDB &pdbB, const PackedPDB &pdbC) {
+                      const PackedPDB &pdbA,
+                      const PackedPDB &pdbB,
+                      const PackedPDB &pdbC) {
         Pattern A{1, 2, 3, 4, 5, 6, 7};
         Pattern B{8, 9, 10, 11};
         Pattern C{12, 13, 14, 15};
@@ -653,6 +733,13 @@ namespace pdb15 {
                static_cast<int>(lookup(pdbC, C, s));
     }
 
+    // Convenience function: load the 7-8 PDBs from files and evaluate the heuristic.
+    //
+    // This:
+    //
+    //   1. Loads the 7-tile PDB from path7.
+    //   2. Loads the 8-tile PDB from path8.
+    //   3. Returns heuristic_78(s, pdb7, pdb8).
     int heuristic_78_from_files(const puzzle15_state &s,
                                 const std::string &path7,
                                 const std::string &path8) {
@@ -664,25 +751,46 @@ namespace pdb15 {
     }
 
     // ---- Auto-loading, state-only API (with simple caching) ----------------------
+    //
+    // This section provides "easy" APIs that:
+    //   * Remember default file paths for the PDBs.
+    //   * Lazily load the PDBs on first use.
+    //   * Cache them in static std::unique_ptrs for reuse.
+    //
+    // The idea:
+    //   - Client code can call heuristic_78_auto(s) or heuristic_744_auto(s)
+    //     without worrying about loading files or keeping PDB objects around.
+    //   - Paths can be overridden via set_default_paths_78 / set_default_paths_744.
+
     namespace {
-        // default path
+        // Default file paths (can be overridden by set_default_paths_*).
         std::string g_p7 = "pdb_1_7.bin";
         std::string g_p8 = "pdb_8_15.bin";
         std::string g_pA = "pdb_1_7.bin";
         std::string g_pB = "pdb_8_11.bin";
         std::string g_pC = "pdb_12_15.bin";
 
+        // Cached PDB instances, loaded on first access.
         std::unique_ptr<pdb15::PackedPDB> g_7, g_8, g_A, g_B, g_C;
     }
 
-    void set_default_paths_78(const std::string &path7, const std::string &path8) {
+    // Set default file paths for the 7-8 PDBs.
+    // Also clears any existing cached PDB objects so they will be reloaded
+    // on the next call to heuristic_78_auto.
+    void set_default_paths_78(const std::string &path7,
+                              const std::string &path8) {
         g_p7 = path7;
         g_p8 = path8;
         g_7.reset();
         g_8.reset();
     }
 
-    void set_default_paths_744(const std::string &pathA, const std::string &pathB, const std::string &pathC) {
+    // Set default file paths for the 7-4-4 PDBs.
+    // Also clears any existing cached PDB objects so they will be reloaded
+    // on the next call to heuristic_744_auto.
+    void set_default_paths_744(const std::string &pathA,
+                               const std::string &pathB,
+                               const std::string &pathC) {
         g_pA = pathA;
         g_pB = pathB;
         g_pC = pathC;
@@ -691,16 +799,33 @@ namespace pdb15 {
         g_C.reset();
     }
 
+    // Autoloading version of the 7-8 heuristic:
+    //
+    //   * Uses the global default paths g_p7 and g_p8.
+    //   * On first call, loads the PDBs from disk into g_7 and g_8.
+    //   * On subsequent calls, reuses the cached PDBs.
+    //   * Returns heuristic_78(s, *g_7, *g_8).
     int heuristic_78_auto(const puzzle15_state &s) {
-        if (!g_7) g_7 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p7, 7));
-        if (!g_8) g_8 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p8, 8));
+        if (!g_7)
+            g_7 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p7, 7));
+        if (!g_8)
+            g_8 = std::make_unique<PackedPDB>(load_pdb_from_file(g_p8, 8));
         return heuristic_78(s, *g_7, *g_8);
     }
 
+    // Autoloading version of the 7-4-4 heuristic:
+    //
+    //   * Uses default paths g_pA, g_pB, g_pC.
+    //   * On first call, loads each PDB from disk into g_A, g_B, g_C.
+    //   * Reuses the cached PDBs on subsequent calls.
+    //   * Returns heuristic_744(s, *g_A, *g_B, *g_C).
     int heuristic_744_auto(const puzzle15_state &s) {
-        if (!g_A) g_A = std::make_unique<PackedPDB>(load_pdb_from_file(g_pA, 7));
-        if (!g_B) g_B = std::make_unique<PackedPDB>(load_pdb_from_file(g_pB, 4));
-        if (!g_C) g_C = std::make_unique<PackedPDB>(load_pdb_from_file(g_pC, 4));
+        if (!g_A)
+            g_A = std::make_unique<PackedPDB>(load_pdb_from_file(g_pA, 7));
+        if (!g_B)
+            g_B = std::make_unique<PackedPDB>(load_pdb_from_file(g_pB, 4));
+        if (!g_C)
+            g_C = std::make_unique<PackedPDB>(load_pdb_from_file(g_pC, 4));
         return heuristic_744(s, *g_A, *g_B, *g_C);
     }
 } // namespace pdb15
