@@ -109,7 +109,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
             if (found) {
                 std::cout << "board number: " << board_num << std::endl;
                 std::cout << "Solution cost = " << solution_cost << std::endl;
-                //PrintSolution(env, start, solution);
+                PrintSolution(env, start, solution);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> duration_s = end - start_time;
                 std::cout << "duration time: " << duration_s.count() <<" seconds";
