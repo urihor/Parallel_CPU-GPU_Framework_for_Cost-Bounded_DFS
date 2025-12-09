@@ -37,9 +37,9 @@ namespace batch_ida {
 
             if (!frame.expanded) {
                 const State &s = frame.state;
-                const int   g  = frame.g;
-                const int   h  = heuristic(s);
-                const int   f  = g + h;
+                const int g = frame.g;
+                const int h = heuristic(s);
+                const int f = g + h;
 
                 work.increment_expanded();
 
@@ -72,7 +72,8 @@ namespace batch_ida {
 
                 // Only one new node per call.
                 return false;
-            } else {
+            }
+            else {
                 // No more children for this node: backtrack.
                 work.pop_frame();
                 // loop again to find another node or finish the subtree

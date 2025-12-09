@@ -12,7 +12,7 @@
 // Basic version – without deduplication.
 template<class Env>
 void GenerateWork(Env &env, typename Env::State &s, int d_init,
-                  std::vector<typename Env::Action> &history, std::vector<WorkFor<Env> > &works,
+                  std::vector<typename Env::Action> &history, std::vector<WorkFor<Env>> &works,
                   int& best_len, std::vector<typename Env::Action>& best_sol) {
 
 

@@ -17,7 +17,7 @@ namespace batch_ida {
  * Parameters:
  *   env        - problem environment (e.g., 15-puzzle).
  *   works      - global pool of Work items, created by GenerateWork(…).
- *   work_num   - logical number of stacks per thread (workNum in the paper).
+ *   work_num   - logical number of stacks per thread.
  *   bound      - current IDA* threshold on f = g + h.
  *   heuristic  - heuristic function h(s).
  *   next_bound - [out] minimal f(n) > bound seen in this iteration,
@@ -36,7 +36,7 @@ bool CB_DFS(Env& env,
             int bound,
             Heuristic heuristic,
             int& next_bound,
-            int num_threads_hint)
+            int num_threads)
 {
     using WorkType = WorkFor<Env>;
     constexpr int INF = std::numeric_limits<int>::max();
@@ -56,31 +56,12 @@ bool CB_DFS(Env& env,
     // Global accumulator for next_bound (minimal f > bound).
     std::atomic<int> global_next_bound(INF);
 
-    // Decide how many OS threads to use.
-    std::size_t num_threads_effective;
-    if (num_threads_hint > 0) {
-        num_threads_effective = static_cast<std::size_t>(num_threads_hint);
-    } else {
-        unsigned int hw = std::thread::hardware_concurrency();
-        num_threads_effective = (hw == 0u)
-                                ? 1u
-                                : static_cast<std::size_t>(hw);
-    }
-
-    if (num_threads_effective == 0) {
-        num_threads_effective = 1;
-    }
-
-    if (num_threads_effective > works.size()) {
-        num_threads_effective = works.size();
-    }
-
     auto worker_fn = [&](int /*thread_id*/) {
         const std::size_t num_stacks = static_cast<std::size_t>(work_num);
 
         // Local logical stacks for this thread.
         std::vector<WorkType*> stacks(num_stacks, nullptr);
-        std::vector<bool>      terminated(num_stacks, false);
+        std::vector<bool>terminated(num_stacks, false);
 
         // miss: number of logical stacks that have entered the terminated
         // state in THIS thread (local Algorithm 3 instance).
@@ -160,8 +141,8 @@ bool CB_DFS(Env& env,
 
     // Spawn OS threads.
     std::vector<std::thread> threads;
-    threads.reserve(num_threads_effective);
-    for (std::size_t t = 0; t < num_threads_effective; ++t) {
+    threads.reserve(num_threads);
+    for (std::size_t t = 0; t < num_threads; ++t) {
         threads.emplace_back(worker_fn, static_cast<int>(t));
     }
 

@@ -13,24 +13,24 @@ public:
      * current node.
      */
     struct Frame {
-        State state{};                    // state at this depth
-        int   g = 0;                      // depth from global start
+        State state{}; // state at this depth
+        int g = 0; // depth from global start
 
         // Children of this node (actions). Filled once when the node
         // is expanded for the first time.
         std::vector<Action> actions;
-        std::size_t         next_child_index = 0; // which child to generate next
+        std::size_t next_child_index = 0; // which child to generate next
 
         bool expanded = false;           // has this node been "expanded" already?
 
         // For reconstructing the solution path:
         Action action_from_parent{};     // action taken from parent to reach this node
-        bool   has_parent = false;       // false for the root frame
+        bool has_parent = false;       // false for the root frame
     };
 
     // These are used by GenerateWork / BatchIDA externally.
-    State               root{};   // root state of this subtree
-    std::vector<Action> init;     // prefix of actions from global start to root
+    State root{};   // root state of this subtree
+    std::vector<Action> init; // prefix of actions from global start to root
 
     Work() = default;
 
@@ -42,26 +42,26 @@ public:
     /// Reset all per-iteration search state (called at the start of each IDA* iteration).
     void reset_for_new_iteration() noexcept {
         path_.clear();
-        goal_found_      = false;
+        goal_found_ = false;
         solution_suffix_.clear();
-        initialized_     = false;
-        expanded_nodes_  = 0;
+        initialized_ = false;
+        expanded_nodes_ = 0;
     }
 
     /// A Work is considered "done" when its DFS path is empty
     /// (and it has been initialized at least once).
-    bool is_done() const noexcept {
+    [[nodiscard]] bool is_done() const noexcept {
         return initialized_ && path_.empty();
     }
 
 
     /// Was a goal found somewhere in this subtree?
-    bool goal_found() const noexcept {
+    [[nodiscard]] bool goal_found() const noexcept {
         return goal_found_;
     }
 
     /// Solution depth (g) for this Work (including init prefix), or -1 if no goal.
-    int goal_solution_depth() const noexcept {
+    [[nodiscard]] int goal_solution_depth() const noexcept {
         if (!goal_found_) {
             return -1;
         }
@@ -82,7 +82,7 @@ public:
     }
 
     /// Number of nodes that were expanded in this Work (across all DoIteration calls).
-    std::uint64_t expanded_nodes() const noexcept {
+    [[nodiscard]] std::uint64_t expanded_nodes() const noexcept {
         return expanded_nodes_;
     }
 
@@ -97,10 +97,10 @@ public:
         path_.clear();
 
         Frame root_frame;
-        root_frame.state      = root;
-        root_frame.g          = static_cast<int>(init.size());
+        root_frame.state = root;
+        root_frame.g = static_cast<int>(init.size());
         root_frame.has_parent = false;
-        root_frame.expanded   = false;
+        root_frame.expanded = false;
         root_frame.next_child_index = 0;
         // actions is initially empty; it will be filled when this node is expanded.
 
@@ -109,7 +109,7 @@ public:
     }
 
     /// Is there a current node on the DFS path?
-    bool has_current() const noexcept {
+    [[nodiscard]] bool has_current() const noexcept {
         return initialized_ && !path_.empty();
     }
 
@@ -133,12 +133,12 @@ public:
     /// Push a child frame corresponding to successor state reached via action 'a'.
     void push_child(const State& child_state, int child_g, const Action& a) {
         Frame child;
-        child.state              = child_state;
-        child.g                  = child_g;
+        child.state = child_state;
+        child.g = child_g;
         child.action_from_parent = a;
-        child.has_parent         = true;
-        child.expanded           = false;
-        child.next_child_index   = 0;
+        child.has_parent = true;
+        child.expanded = false;
+        child.next_child_index = 0;
         // 'actions' will be filled when we expand this child.
         path_.push_back(std::move(child));
     }
@@ -167,7 +167,7 @@ private:
     std::vector<Frame> path_;
 
     bool initialized_ = false;
-    bool goal_found_  = false;
+    bool goal_found_ = false;
 
     // Actions from this Work's root to the goal, filled when mark_goal_current() is called.
     std::vector<Action> solution_suffix_;
