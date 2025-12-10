@@ -33,13 +33,19 @@ bool DoIteration(
         int &next_bound
 ) {
     using State = typename Env::State;
+    using Action = typename Env::Action;
+
+    if (work.is_done() || work.goal_found()) {
+        return work.goal_found();
+    }
+    work.ensure_initialized();
 
     if (!work.has_current()) {
         return false;
     }
 
     auto &frame = work.current_frame();
-    const State &s = frame.state;
+    State s = frame.state;
     const int g = frame.g;
 
     // Decide whether we are in "batched neural" mode or plain synchronous mode.
@@ -81,7 +87,7 @@ bool DoIteration(
     // Prepare expansion if needed.
     if (!frame.expanded) {
         frame.actions.clear();
-        env.GetActions(s);
+        frame.actions = env.GetActions(s);
         frame.next_child_index = 0;
         frame.expanded = true;
         work.increment_expanded();
@@ -95,25 +101,28 @@ bool DoIteration(
             // We expand *all* children of s in this call, and enqueue each
             // child into the batch so that its heuristic can be computed on
             // the GPU while CB-DFS explores other subtrees.
+            State parent_state = s;
+            const int parent_g = g;
+            std::vector<Action> actions = frame.actions;
+            std::size_t start_idx = frame.next_child_index;
 
-            for (; frame.next_child_index < frame.actions.size();
-                   ++frame.next_child_index) {
-                const auto action = frame.actions[frame.next_child_index];
+            work.pop_frame();
 
-                State child = s;
+            for (std::size_t idx = start_idx; idx < actions.size(); ++idx) {
+                const Action &action = actions[idx];
+
+                State child = parent_state;
                 env.ApplyAction(child, action);
-                const int child_g = g + 1;  // unit-cost move in STP
+                const int child_g = parent_g + 1;  // unit-cost move in STP
 
-                // Schedule child for batched heuristic evaluation.
                 batch_service->enqueue(child);
 
-                // Push the child onto the local DFS stack.
                 work.push_child(std::move(child), child_g, action);
             }
 
-            // We have fully expanded s; backtrack from this frame.
-            work.pop_frame();
-        } else {
+           return false;
+        }
+        else {
             // --- Original behaviour (no batching) ---
             //
             // Expand only one child per call for better interleaving between
@@ -127,7 +136,8 @@ bool DoIteration(
 
             work.push_child(std::move(child), child_g, action);
         }
-    } else {
+    }
+    else {
         // No more children => backtrack.
         work.pop_frame();
     }

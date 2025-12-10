@@ -83,13 +83,17 @@ static int Heuristic0(const StpEnv::State &s) {
     return 0;
 }
 
+int NeuralHeuristic(const StpEnv::State& s) {
+    return neural15::NeuralDelta15::instance().h_M_single(s);
+}
+
 // Run Batch IDA* on a list of boards using the 7/8 PDB heuristic
 void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
 
     StpEnv env;
 
     int d_init   = 13;   // initial depth bound for GenerateWork
-    int work_num = 7;    // number of logical stacks
+    int work_num = 1;    // number of logical stacks
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
@@ -101,7 +105,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
         // In neural-batched mode, the synchronous heuristic is set to 0.
         // The actual h_M values are supplied asynchronously via the
         // NeuralBatchService (Algorithm 4 style).
-        heuristic = &Heuristic0;
+        heuristic = &NeuralHeuristic;
         std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
         } else {
             std::cout << "[run_batch_ida_example] Using 7/8 PDB heuristic (no neural batching)\n";
@@ -122,12 +126,13 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
                                             d_init,
                                             work_num,
                                             solution_cost,
-                                            solution);
+                                            solution,
+                                            1);
 
             if (found) {
                 std::cout << "board number: " << board_num << std::endl;
                 std::cout << "Solution cost = " << solution_cost << std::endl;
-                //PrintSolution(env, start, solution);
+                PrintSolution(env, start, solution);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> duration_s = end - start_time;
                 std::cout << "duration time: " << duration_s.count() <<" seconds";
@@ -168,6 +173,7 @@ int main() {
         std::cout << "using NN" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout<< std::endl << std::endl;
+
         // --- GPU / CUDA sanity check ---
         std::cout << "torch::cuda::is_available() = "
                   << (torch::cuda::is_available() ? "true" : "false")
@@ -179,7 +185,6 @@ int main() {
 
         std::cout << "Using device: " << (device.is_cuda() ? "CUDA" : "CPU") << std::endl;
 
-        // ניצור טנזור רנדומלי על ה-device שבחרנו ונבדוק מה הוא מדפיס
         auto x = torch::rand({4, 7, 4, 4}, device);
         std::cout << "x.device() = " << x.device() << std::endl;
         using neural15::NeuralDelta15;
@@ -187,14 +192,12 @@ int main() {
         std::cout << "torch::cuda::is_available() = "
                   << (torch::cuda::is_available() ? "true" : "false") << std::endl;
 
-        // אתחול הרשת – "." = התיקייה הנוכחית, כלומר bin
         NeuralDelta15::instance().initialize(".");
 
-        // צור לוח לדוגמה – למשל מצב ההתחלה הקלאסי:
-        puzzle15_state s{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
+        /*puzzle15_state s{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
 
 
-        int md = manhattan_15(s);  // תתאים לשם האמיתי אצלך
+        int md = manhattan_15(s);
 
         int d1 = NeuralDelta15::instance().delta_1_7(s);
         int d2 = NeuralDelta15::instance().delta_8_15(s);
@@ -203,10 +206,10 @@ int main() {
         std::cout << "Manhattan(s) = " << md << "\n";
         std::cout << "delta_1_7(s) = " << d1 << "\n";
         std::cout << "delta_8_15(s) = " << d2 << "\n";
-        std::cout << "h_M(s)       = " << hM << "\n";
+        std::cout << "h_M(s)       = " << hM << "\n";*/
 
         neural15::init_default_batch_service();
-        run_batch_ida_example(boards);
+        //run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
         boards2.emplace_back(puzzle15_state{2,7,4,8,1,3,6,0,5,10,15,11,9,13,14,12});
         //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});

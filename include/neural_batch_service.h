@@ -54,7 +54,7 @@ public:
     // Schedule a state for batched evaluation (idempotent).
     void enqueue(const State& s);
 
-    // Try to obtain h(s). Returns true iff the value is already available.
+    // Try to obtain h(s). Returns true if the value is already available.
     // If 'false' is returned, the caller should normally give up the current
     // logical stack and try another Work.
     bool try_get_h(const State& s, int& h_out);
@@ -99,7 +99,7 @@ inline bool& neural_batch_enabled_flag() {
     return enabled;
 }
 
-inline void set_neural_batch_enabled(bool enabled) {
+inline void set_neural_batch_enabled(const bool enabled) {
     neural_batch_enabled_flag() = enabled;
 }
 

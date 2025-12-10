@@ -34,6 +34,8 @@ namespace neural15 {
         // פונקציה נוחה שמחזירה h_M אם יש לך כבר Manhattan
         // (תוכל לחבר לפונקציית המנהטן הקיימת שלך מחוץ למחלקה)
         int h_M(const puzzle15_state& s, int manhattan_heuristic) const;
+        int h_M_single(const puzzle15_state& s) const;
+
 
         std::vector<int> h_M_batch(const std::vector<puzzle15_state>& states) const;
 

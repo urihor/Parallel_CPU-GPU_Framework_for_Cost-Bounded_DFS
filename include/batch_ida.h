@@ -14,7 +14,7 @@
 
 namespace batch_ida {
     /**
-     * Batch IDA* (Algorithm 1) - single-threaded version.
+     * Batch IDA* (Algorithm 1) - multy-threaded version.
      *
      * This function runs an IDA* loop using:
      *   - Algorithm 2 (GenerateWork) to build a pool of subtree roots ("works")
@@ -137,9 +137,6 @@ namespace batch_ida {
             num_threads = (hw == 0u) ? 1u : static_cast<std::size_t>(hw);
         }
 
-        if (num_threads == 0) {
-            num_threads = 1;
-        }
 
         // Do not run more threads than Works.
         if (num_threads > works.size()) {

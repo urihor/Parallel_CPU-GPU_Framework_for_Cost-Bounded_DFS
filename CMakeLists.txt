@@ -4,7 +4,6 @@ project(bootcamp LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(Torch_DIR "/home/uriel/libs/libtorch/share/cmake/Torch")
 find_package(Torch REQUIRED)
 
 add_library(bootcamp_core
