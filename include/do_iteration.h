@@ -91,40 +91,18 @@ bool DoIteration(
         frame.next_child_index = 0;
         frame.expanded = true;
         work.increment_expanded();
+        if (batch_service && batch_service->is_running()) {
+            for (const auto& action : frame.actions) {
+                State child = s;
+                env.ApplyAction(child, action);
+                batch_service->enqueue(child);
+            }
+        }
     }
 
     // Expansion step.
     if (frame.next_child_index < frame.actions.size()) {
-        if (batch_service && batch_service->is_running()) {
-            // --- Neural batched mode (Algorithm 4 style) ---
-            //
-            // We expand *all* children of s in this call, and enqueue each
-            // child into the batch so that its heuristic can be computed on
-            // the GPU while CB-DFS explores other subtrees.
-            State parent_state = s;
-            const int parent_g = g;
-            std::vector<Action> actions = frame.actions;
-            std::size_t start_idx = frame.next_child_index;
 
-            work.pop_frame();
-
-            for (std::size_t idx = start_idx; idx < actions.size(); ++idx) {
-                const Action &action = actions[idx];
-
-                State child = parent_state;
-                env.ApplyAction(child, action);
-                const int child_g = parent_g + 1;  // unit-cost move in STP
-
-                batch_service->enqueue(child);
-
-                work.push_child(std::move(child), child_g, action);
-            }
-
-           return false;
-        }
-        else {
-            // --- Original behaviour (no batching) ---
-            //
             // Expand only one child per call for better interleaving between
             // works when using a purely synchronous heuristic.
 
@@ -135,7 +113,7 @@ bool DoIteration(
             const int child_g = g + 1;  // unit-cost move in STP
 
             work.push_child(std::move(child), child_g, action);
-        }
+
     }
     else {
         // No more children => backtrack.

@@ -126,8 +126,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
                                             d_init,
                                             work_num,
                                             solution_cost,
-                                            solution,
-                                            1);
+                                            solution);
 
             if (found) {
                 std::cout << "board number: " << board_num << std::endl;
@@ -209,11 +208,11 @@ int main() {
         std::cout << "h_M(s)       = " << hM << "\n";*/
 
         neural15::init_default_batch_service();
-        //run_batch_ida_example(boards);
+        run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
         boards2.emplace_back(puzzle15_state{2,7,4,8,1,3,6,0,5,10,15,11,9,13,14,12});
         //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
-        run_batch_ida_example(boards2);
+        //run_batch_ida_example(boards2);
 
         std::cout << "[bootcamp_main done]\n";
 
