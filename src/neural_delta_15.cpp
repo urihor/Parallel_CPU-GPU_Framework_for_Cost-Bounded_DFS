@@ -307,8 +307,9 @@ namespace neural15 {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
         }
-        int md = manhattan_15(s);
-        return h_M(s, md);  // משתמש בפונקציה שכבר קיימת אצלך
+        /*int md = manhattan_15(s);*/
+        int md = 0;
+        return h_M(s, md);
     }
 
     std::vector<int> NeuralDelta15::h_M_batch(const std::vector<puzzle15_state> &states) const {
@@ -331,7 +332,8 @@ namespace neural15 {
         std::vector<int> result;
         result.reserve(states.size());
         for (std::size_t i = 0; i < states.size(); ++i) {
-            int md = manhattan_15(states[i]);
+            /*int md = manhattan_15(states[i]);*/
+            int md = 0;
             int h = md + d1[i] + d2[i];
             result.push_back(h);
         }
@@ -347,8 +349,8 @@ namespace neural15 {
 
         NeuralBatchService::instance().start(
             batch_fn,
-            /*max_batch_size=*/512,
-            std::chrono::milliseconds(1)
+            /*max_batch_size=*/8000,
+            std::chrono::microseconds(100)
         );
 
         batch_ida::set_neural_batch_enabled(true);

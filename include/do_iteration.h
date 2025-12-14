@@ -57,13 +57,16 @@ bool DoIteration(
     int h = 0;
 
     if (batch_service && batch_service->is_running()) {
+        int h_dummy = 0;
         // Non-blocking: try to read h(s) from the batch service.
-        if (!batch_service->try_get_h(s, h)) {
+        if (!batch_service->try_get_h(s, h_dummy)) {
             // h(s) is not ready yet; enqueue s (idempotent) and give this
             // CPU thread a chance to work on another logical stack.
             batch_service->enqueue(s);
             return false;
         }
+        h = heuristic(s);
+
     } else {
         // Fallback: normal synchronous heuristic evaluation.
         h = heuristic(s);

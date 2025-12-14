@@ -41,11 +41,17 @@ public:
     //
     void start(BatchComputeFn fn,
                std::size_t max_batch_size = 512,
-               std::chrono::milliseconds max_wait =
+               std::chrono::nanoseconds max_wait =
                    std::chrono::milliseconds(1));
 
     // Stop the worker thread and flush all pending work.
     void shutdown();
+
+    // Clear all cached states and their heuristic values.
+    // Intended to be called between IDA* bounds, after an iteration finishes.
+    // Safe to call while the worker thread is running.
+    void reset_for_new_bound();
+
 
     // Non-copyable.
     NeuralBatchService(const NeuralBatchService&) = delete;
@@ -80,8 +86,8 @@ private:
     std::condition_variable cv_;
     std::unordered_map<Key, Entry> entries_;
 
-    std::size_t max_batch_size_ = 512;
-    std::chrono::milliseconds max_wait_{1};
+    std::size_t max_batch_size_ = 8000;
+    std::chrono::nanoseconds max_wait_{std::chrono::milliseconds (1)};
 
     std::thread worker_thread_;
     std::atomic<bool> running_{false};

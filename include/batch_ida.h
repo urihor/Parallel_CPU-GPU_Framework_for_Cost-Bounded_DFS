@@ -116,6 +116,7 @@ namespace batch_ida {
                           best_len,
                           best_sol);
 
+        std::cout << "num of works: " << works.size() << std::endl;
         // If GenerateWork itself found a solution with cost <= bound,
         // we can stop immediately.
         if (best_len < INF && best_len <= bound) {
@@ -142,12 +143,20 @@ namespace batch_ida {
         if (num_threads > works.size()) {
             num_threads = works.size();
         }
-        //std::cout << "num of threads: "<<num_threads << std::endl;
+        std::cout << "num of threads: "<<num_threads << std::endl;
 
         // --------------------------------------------------
         // 2) IDA* outer loop: reuse the same works each time.
         // --------------------------------------------------
         while (true) {
+
+            // If neural batching is enabled, clear the cached entries between bounds.
+            // This drops all states from the previous IDA* iteration and lets the
+            // GPU cache only states relevant to the current threshold.
+            /*if (neural_batch_enabled()) {
+                NeuralBatchService::instance().reset_for_new_bound();
+            }*/
+
             // Reset all works' search state for the new IDA* iteration.
             for (auto &w: works) {
                 w.reset_for_new_iteration();

@@ -93,7 +93,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
     StpEnv env;
 
     int d_init   = 13;   // initial depth bound for GenerateWork
-    int work_num = 1;    // number of logical stacks
+    int work_num = 2000;    // number of logical stacks
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
@@ -105,7 +105,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
         // In neural-batched mode, the synchronous heuristic is set to 0.
         // The actual h_M values are supplied asynchronously via the
         // NeuralBatchService (Algorithm 4 style).
-        heuristic = &NeuralHeuristic;
+        //heuristic = &NeuralHeuristic;
         std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
         } else {
             std::cout << "[run_batch_ida_example] Using 7/8 PDB heuristic (no neural batching)\n";
@@ -119,6 +119,10 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
             auto start = board;   // or: auto start = board;
 
             solution.clear();
+            if ((batch_ida::neural_batch_enabled() &&
+        NeuralBatchService::instance().is_running())) {
+               NeuralBatchService::instance().reset_for_new_bound();
+           }
 
             bool found = batch_ida::BatchIDA(env,
                                             start,              // non-const lvalue
@@ -131,7 +135,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
             if (found) {
                 std::cout << "board number: " << board_num << std::endl;
                 std::cout << "Solution cost = " << solution_cost << std::endl;
-                PrintSolution(env, start, solution);
+                //PrintSolution(env, start, solution);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> duration_s = end - start_time;
                 std::cout << "duration time: " << duration_s.count() <<" seconds";
@@ -165,7 +169,7 @@ int main() {
         // Prepare the 100 Korf instances mapped to our goal
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
-        //preload_pdbs_to_ram();
+        preload_pdbs_to_ram();
         boards = MakeKorf100StatesForOurGoal();
         std::cout<< std::endl << std::endl;
         std::cout << "=============================================" << std::endl;
@@ -193,26 +197,14 @@ int main() {
 
         NeuralDelta15::instance().initialize(".");
 
-        /*puzzle15_state s{1,2,3,4,5,6,7,8,9,10,11,12,0,13,14,15};
-
-
-        int md = manhattan_15(s);
-
-        int d1 = NeuralDelta15::instance().delta_1_7(s);
-        int d2 = NeuralDelta15::instance().delta_8_15(s);
-        int hM = NeuralDelta15::instance().h_M(s, md);
-
-        std::cout << "Manhattan(s) = " << md << "\n";
-        std::cout << "delta_1_7(s) = " << d1 << "\n";
-        std::cout << "delta_8_15(s) = " << d2 << "\n";
-        std::cout << "h_M(s)       = " << hM << "\n";*/
-
         neural15::init_default_batch_service();
         run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
-        boards2.emplace_back(puzzle15_state{2,7,4,8,1,3,6,0,5,10,15,11,9,13,14,12});
+        //boards2.emplace_back(puzzle15_state{9,1,3,4,2,5,6,8,10,14,7,12,13,11,15,0});
         //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
-        //run_batch_ida_example(boards2);
+        //boards2.emplace_back(boards[87]);
+        run_batch_ida_example(boards2);
+        NeuralBatchService::instance().shutdown();
 
         std::cout << "[bootcamp_main done]\n";
 
