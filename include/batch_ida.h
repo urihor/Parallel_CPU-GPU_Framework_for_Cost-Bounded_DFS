@@ -203,6 +203,7 @@ namespace batch_ida {
             }
 
             // 3) Update the threshold and start a new IDA* iteration.
+            NVTX_MARK("New bound: reset batch cache");
             bound = next_bound;
         }
 

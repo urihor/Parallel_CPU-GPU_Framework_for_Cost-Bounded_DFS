@@ -2,6 +2,8 @@
 // Created by Owner on 07/12/2025.
 //
 #include "neural_delta_15.h"
+#include "nvtx_helpers.h"
+
 
 #include <torch/script.h>
 #include <torch/torch.h>
@@ -209,6 +211,7 @@ namespace neural15 {
         torch::Tensor input = make_input_1_7(s, impl_->device);
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(input);
+        NVTX_RANGE("NeuralDelta15::delta_1_7_batch");
 
         torch::Tensor logits = impl_->model_1_7.forward(inputs).toTensor();
         // logits shape: [1, num_classes]
@@ -247,6 +250,7 @@ namespace neural15 {
         torch::Tensor input = make_input_1_7_batch(states, impl_->device);
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(input);
+        NVTX_RANGE("NeuralDelta15::delta_1_7_batch");
 
         torch::Tensor logits = impl_->model_1_7.forward(inputs).toTensor();
         // logits shape: [B, num_classes]
@@ -279,6 +283,7 @@ namespace neural15 {
         torch::Tensor input = make_input_8_15_batch(states, impl_->device);
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(input);
+        NVTX_RANGE("NeuralDelta15::delta_8_15_batch");
 
         torch::Tensor logits = impl_->model_8_15.forward(inputs).toTensor();
         torch::Tensor preds = logits.argmax(1);
@@ -321,6 +326,7 @@ namespace neural15 {
         }
 
         // 1. דלתא לפטרן 1–7 ו-8–15 ב-batch, על ה-GPU
+        NVTX_RANGE("NN: h_M_batch");
         std::vector<int> d1 = delta_1_7_batch(states);
         std::vector<int> d2 = delta_8_15_batch(states);
 

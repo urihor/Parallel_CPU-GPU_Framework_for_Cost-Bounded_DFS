@@ -9,6 +9,7 @@
 #include <chrono>
 #include <functional>
 #include <unordered_map>
+#include <deque>
 
 #include "puzzle15_state.h"
 
@@ -66,6 +67,14 @@ public:
     bool try_get_h(const State& s, int& h_out);
 
     bool is_running() const noexcept { return running_; }
+    enum class HRequestStatus { Ready, Pending, NotRunning };
+
+    // Single call:
+    // - Ready: h_out is valid
+    // - Pending: request exists / was registered, try later
+    // - NotRunning: batching disabled, caller should fallback
+    HRequestStatus request_h(const State& s, int& h_out);
+
 
 private:
     NeuralBatchService() = default;
@@ -85,6 +94,8 @@ private:
     mutable std::mutex mutex_;
     std::condition_variable cv_;
     std::unordered_map<Key, Entry> entries_;
+    std::deque<Key> pending_;
+
 
     std::size_t max_batch_size_ = 8000;
     std::chrono::nanoseconds max_wait_{std::chrono::milliseconds (1)};

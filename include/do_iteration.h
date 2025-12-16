@@ -1,6 +1,7 @@
 #pragma once
 #include "neural_batch_service.h"
 #include "work.h"
+#include "nvtx_helpers.h"
 
 namespace batch_ida {
 
@@ -58,11 +59,13 @@ bool DoIteration(
 
     if (batch_service && batch_service->is_running()) {
         int h_dummy = 0;
+        const auto st = batch_service->request_h(s, h_dummy);
         // Non-blocking: try to read h(s) from the batch service.
-        if (!batch_service->try_get_h(s, h_dummy)) {
-            // h(s) is not ready yet; enqueue s (idempotent) and give this
-            // CPU thread a chance to work on another logical stack.
-            batch_service->enqueue(s);
+        if (st == NeuralBatchService::HRequestStatus::Ready) {
+            NVTX_MARK("DoIteration: try_get_h HIT");
+            h = h_dummy;              // משתמשים בתוצאה של השירות
+        } else if (st == NeuralBatchService::HRequestStatus::Pending) {
+            NVTX_MARK("DoIteration: try_get_h MISS -> enqueue+yield");
             return false;
         }
         h = heuristic(s);

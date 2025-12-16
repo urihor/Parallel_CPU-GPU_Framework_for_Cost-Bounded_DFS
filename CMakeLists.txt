@@ -27,11 +27,15 @@ target_link_libraries(bootcamp_core
         PUBLIC
         ${TORCH_LIBRARIES}
 )
+target_compile_definitions(bootcamp_core PRIVATE ENABLE_NVTX)
+
 
 # === src main ===
 add_executable(bootcamp_main
         src/main.cpp
 )
+target_compile_definitions(bootcamp_main PRIVATE ENABLE_NVTX)
+
 
 target_link_libraries(bootcamp_main
         PRIVATE

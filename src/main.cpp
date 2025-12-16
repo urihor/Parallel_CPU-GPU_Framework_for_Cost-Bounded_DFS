@@ -93,7 +93,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
     StpEnv env;
 
     int d_init   = 13;   // initial depth bound for GenerateWork
-    int work_num = 2000;    // number of logical stacks
+    int work_num = 200;    // number of logical stacks
     int solution_cost = 0;
     int board_num = 1;
     std::vector<StpEnv::Action> solution;
@@ -123,7 +123,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
         NeuralBatchService::instance().is_running())) {
                NeuralBatchService::instance().reset_for_new_bound();
            }
-
+            NVTX_RANGE("Solve one board");
             bool found = batch_ida::BatchIDA(env,
                                             start,              // non-const lvalue
                                             heuristic,    // int(const StpEnv::State&)
@@ -198,6 +198,7 @@ int main() {
         NeuralDelta15::instance().initialize(".");
 
         neural15::init_default_batch_service();
+        NVTX_RANGE("BOOTCAMP_SEARCH_RANGE_123");
         run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
         //boards2.emplace_back(puzzle15_state{9,1,3,4,2,5,6,8,10,14,7,12,13,11,15,0});

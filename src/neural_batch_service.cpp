@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <iostream>
+#include "nvtx_helpers.h"
 
 //
 // NeuralBatchService
@@ -86,6 +87,48 @@ void NeuralBatchService::shutdown() {
     running_ = false;
 }
 
+NeuralBatchService::HRequestStatus
+NeuralBatchService::request_h(const State& s, int& h_out) {
+    if (!running_) {
+        return HRequestStatus::NotRunning;
+    }
+
+    const Key key = s.pack();
+    bool notify_worker = false;
+    HRequestStatus status = HRequestStatus::Pending;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // One lookup: insert-if-missing
+        auto [it, inserted] = entries_.try_emplace(key);
+
+        if (inserted) {
+            it->second.state = s;
+
+            // Since you already did (1) pending queue:
+            pending_.push_back(key);
+
+            notify_worker = true;
+            status = HRequestStatus::Pending;
+        } else {
+            if (it->second.ready) {
+                h_out = it->second.h_value;
+                status = HRequestStatus::Ready;
+            } else {
+                status = HRequestStatus::Pending;
+            }
+        }
+    }
+
+    if (notify_worker) {
+        cv_.notify_one();
+    }
+
+    return status;
+}
+
+
 void NeuralBatchService::reset_for_new_bound() {
     // If the service is not running, there is nothing to clear.
     if (!running_) {
@@ -94,6 +137,8 @@ void NeuralBatchService::reset_for_new_bound() {
 
     std::lock_guard<std::mutex> lock(mutex_);
     entries_.clear();
+    pending_.clear();
+
 }
 
 
@@ -130,6 +175,7 @@ void NeuralBatchService::enqueue(const State& s) {
         Entry e;
         e.state = s;
         entries_.emplace(key, std::move(e));
+        pending_.push_back(key);
     }
 
     // Wake the worker so it can consider forming a new batch.
@@ -185,84 +231,59 @@ bool NeuralBatchService::try_get_h(const State& s, int& h_out) {
  */
 void NeuralBatchService::worker_loop(BatchComputeFn fn) {
     using clock = std::chrono::steady_clock;
+    std::vector<State> local_batch;
+    std::vector<Key>   local_keys;
+    std::vector<int> hs;
+    local_batch.reserve(max_batch_size_);
+    local_keys.reserve(max_batch_size_);
+    hs.reserve(max_batch_size_);
+    NVTX_RANGE("NBS: collect batch");
 
     while (!stop_) {
-        std::vector<State> local_batch;
-        std::vector<Key>   local_keys;
+        local_batch.clear();
+        local_keys.clear();
+        hs.clear();
         clock::time_point  start_collect;
 
         {
             std::unique_lock<std::mutex> lock(mutex_);
 
-            // 1) Wait until there is at least one pending entry or we are stopping.
+            // Wait until we have something pending (NOT just entries_ non-empty).
             cv_.wait(lock, [&] {
-                return stop_ || !entries_.empty();
+                return stop_ || !pending_.empty();
             });
 
             if (stop_) {
                 return;
             }
 
-            // We are about to start collecting a batch.
-            start_collect = clock::now();
-            auto deadline = start_collect + max_wait_;
+            local_batch.reserve(max_batch_size_);
+            local_keys.reserve(max_batch_size_);
 
-            // 2) Collect up to max_batch_size_ unscheduled entries.
-            while (!stop_) {
-                // Pull unscheduled entries into local_batch.
-                for (auto &kv : entries_) {
-                    Entry &e = kv.second;
-                    if (!e.scheduled) {
-                        e.scheduled = true;
-                        local_batch.push_back(e.state);
-                        local_keys.push_back(kv.first);
+            // 1) Pop first valid item (skip stale keys if reset/erase happened).
+            while (!stop_ && local_batch.empty()) {
+                while (!pending_.empty() && local_batch.empty()) {
+                    const Key key = pending_.front();
+                    pending_.pop_front();
 
-                        if (local_batch.size() >= max_batch_size_) {
-                            break; // batch is full
-                        }
-                    }
-                }
-
-                if (!local_batch.empty()) {
-                    auto now = clock::now();
-
-                    // Case A: batch is full -> stop collecting and process it.
-                    if (local_batch.size() >= max_batch_size_) {
-                        break;
+                    auto it = entries_.find(key);
+                    if (it == entries_.end()) {
+                        continue; // stale key (e.g., reset_for_new_bound cleared map)
                     }
 
-                    // Case B: timeout elapsed -> process partial batch.
-                    if (now >= deadline) {
-                        break;
+                    Entry& e = it->second;
+                    if (e.ready || e.scheduled) {
+                        continue; // should be rare, but keep it safe
                     }
 
-                    // Case C: partial batch and still time left.
-                    // Wait for more entries or until deadline.
-                    std::size_t known_entries = entries_.size();
-                    cv_.wait_until(lock, deadline, [&] {
-                        return stop_ || entries_.size() > known_entries;
-                    });
-
-                    // Re-check in the next iteration (either new entries arrived
-                    // or the deadline is close/has passed).
-                    continue;
+                    e.scheduled = true;
+                    local_batch.push_back(e.state);
+                    local_keys.push_back(key);
                 }
 
-                // local_batch is still empty here.
-                // Wait until new entries arrive or until the deadline.
-                std::size_t known_entries = entries_.size();
-                cv_.wait_until(lock, deadline, [&] {
-                    return stop_ || entries_.size() > known_entries;
-                });
-
-                if (stop_) {
-                    return;
-                }
-
-                // If the deadline has passed and we still have no batch, give
-                // the outer loop a chance to re-check (maybe stop_ changed).
-                if (clock::now() >= deadline && local_batch.empty()) {
-                    break;
+                if (local_batch.empty()) {
+                    // pending_ had only stale keys; wait for new ones.
+                    cv_.wait(lock, [&] { return stop_ || !pending_.empty(); });
                 }
             }
 
@@ -270,28 +291,69 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
                 return;
             }
 
-            if (local_batch.empty()) {
-                // Nothing collected before timeout / stop; go back and wait again.
-                continue;
-            }
-        } // mutex_ is released here while running the GPU computation.
+            // Timer starts from first collected item.
+            start_collect = clock::now();
+            auto deadline = start_collect + max_wait_;
 
-        // 3) Measure how long we waited before sending the batch to the GPU.
+            // 2) Keep collecting until full or timeout.
+            while (!stop_ && local_batch.size() < max_batch_size_) {
+                while (!pending_.empty() && local_batch.size() < max_batch_size_) {
+                    const Key key = pending_.front();
+                    pending_.pop_front();
+
+                    auto it = entries_.find(key);
+                    if (it == entries_.end()) {
+                        continue;
+                    }
+
+                    Entry& e = it->second;
+                    if (e.ready || e.scheduled) {
+                        continue;
+                    }
+
+                    e.scheduled = true;
+                    local_batch.push_back(e.state);
+                    local_keys.push_back(key);
+                }
+
+                if (local_batch.size() >= max_batch_size_) {
+                    break;
+                }
+
+                if (clock::now() >= deadline) {
+                    break;
+                }
+
+                // Wait for more pending keys (or until deadline).
+                cv_.wait_until(lock, deadline, [&] {
+                    return stop_ || !pending_.empty();
+                });
+            }
+
+            if (stop_) {
+                return;
+            }
+        } // unlock mutex_ during GPU call
+
+        // Debug timing (same idea as you had).
         auto end_collect = clock::now();
-        auto waited_ms = std::chrono::duration<double, std::milli>(
-                             end_collect - start_collect).count();
+        auto waited_ms =
+            std::chrono::duration<double, std::milli>(end_collect - start_collect).count();
 
         std::cout << "[NeuralBatchService] batch size: " << local_batch.size()
                   << ", waited: " << waited_ms << " ms before GPU call\n";
 
-        // 4) Compute heuristics for the whole batch (typically on the GPU).
-        std::vector<int> hs(local_batch.size());
+        // Compute on GPU/CPU
+        hs.resize(local_batch.size());
+        NVTX_MARK("NBS: batch ready -> GPU call");
+
         try {
+            NVTX_RANGE("NBS: batch_fn (GPU)");
+
             fn(local_batch, hs);
-        } catch (const std::exception &ex) {
+        } catch (const std::exception& ex) {
             std::cerr << "[NeuralBatchService] batch_fn threw exception: "
                       << ex.what() << std::endl;
-            // Optionally stop the service so callers can fall back to a safe path.
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 stop_ = true;
@@ -300,23 +362,23 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
             return;
         }
 
-        // 5) Store the results back into the shared map and mark entries as ready.
+        // Store results
         {
+            NVTX_RANGE("NBS: store results");
+
             std::lock_guard<std::mutex> lock(mutex_);
             const std::size_t n = std::min(local_batch.size(), hs.size());
             for (std::size_t i = 0; i < n; ++i) {
                 const Key key = local_keys[i];
                 auto it = entries_.find(key);
                 if (it == entries_.end()) {
-                    // Entry might have been removed meanwhile (e.g., consumer gave up).
                     continue;
                 }
-                it->second.ready   = true;
+                it->second.ready = true;
                 it->second.h_value = hs[i];
             }
         }
 
-        // Notify any threads waiting for results (try_get_h or others).
         cv_.notify_all();
     }
 }
