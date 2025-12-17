@@ -30,7 +30,7 @@
 //
 
 // Get the global singleton instance of the service.
-NeuralBatchService& NeuralBatchService::instance() {
+NeuralBatchService &NeuralBatchService::instance() {
     static NeuralBatchService inst;
     return inst;
 }
@@ -88,7 +88,7 @@ void NeuralBatchService::shutdown() {
 }
 
 NeuralBatchService::HRequestStatus
-NeuralBatchService::request_h(const State& s, int& h_out) {
+NeuralBatchService::request_h(const State &s, int &h_out) {
     if (!running_) {
         return HRequestStatus::NotRunning;
     }
@@ -138,7 +138,6 @@ void NeuralBatchService::reset_for_new_bound() {
     std::lock_guard<std::mutex> lock(mutex_);
     entries_.clear();
     pending_.clear();
-
 }
 
 
@@ -155,7 +154,7 @@ NeuralBatchService::~NeuralBatchService() {
 //
 // If the service is not running, this function does nothing. The caller should
 // then fall back to the synchronous heuristic.
-void NeuralBatchService::enqueue(const State& s) {
+void NeuralBatchService::enqueue(const State &s) {
     if (!running_) {
         // If batching is not running, do nothing. The caller will fall back
         // to the synchronous heuristic path.
@@ -191,7 +190,7 @@ void NeuralBatchService::enqueue(const State& s) {
 //           or its value is not ready yet.
 //
 // This is a non-blocking call; it never waits for the worker to finish.
-bool NeuralBatchService::try_get_h(const State& s, int& h_out) {
+bool NeuralBatchService::try_get_h(const State &s, int &h_out) {
     if (!running_) {
         return false;
     }
@@ -206,7 +205,7 @@ bool NeuralBatchService::try_get_h(const State& s, int& h_out) {
 
     h_out = it->second.h_value;
     // Once the value is consumed we can forget the entry to keep memory small.
-    //entries_.erase(it);
+    entries_.erase(it);
     return true;
 }
 
@@ -232,7 +231,7 @@ bool NeuralBatchService::try_get_h(const State& s, int& h_out) {
 void NeuralBatchService::worker_loop(BatchComputeFn fn) {
     using clock = std::chrono::steady_clock;
     std::vector<State> local_batch;
-    std::vector<Key>   local_keys;
+    std::vector<Key> local_keys;
     std::vector<int> hs;
     local_batch.reserve(max_batch_size_);
     local_keys.reserve(max_batch_size_);
@@ -243,7 +242,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
         local_batch.clear();
         local_keys.clear();
         hs.clear();
-        clock::time_point  start_collect;
+        clock::time_point start_collect;
 
         {
             std::unique_lock<std::mutex> lock(mutex_);
@@ -271,7 +270,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
                         continue; // stale key (e.g., reset_for_new_bound cleared map)
                     }
 
-                    Entry& e = it->second;
+                    Entry &e = it->second;
                     if (e.ready || e.scheduled) {
                         continue; // should be rare, but keep it safe
                     }
@@ -306,7 +305,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
                         continue;
                     }
 
-                    Entry& e = it->second;
+                    Entry &e = it->second;
                     if (e.ready || e.scheduled) {
                         continue;
                     }
@@ -338,7 +337,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
         // Debug timing (same idea as you had).
         auto end_collect = clock::now();
         auto waited_ms =
-            std::chrono::duration<double, std::milli>(end_collect - start_collect).count();
+                std::chrono::duration<double, std::milli>(end_collect - start_collect).count();
 
         /*std::cout << "[NeuralBatchService] batch size: " << local_batch.size()
                   << ", waited: " << waited_ms << " ms before GPU call\n";*/
@@ -351,9 +350,9 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
             NVTX_RANGE("NBS: batch_fn (GPU)");
 
             fn(local_batch, hs);
-        } catch (const std::exception& ex) {
+        } catch (const std::exception &ex) {
             std::cerr << "[NeuralBatchService] batch_fn threw exception: "
-                      << ex.what() << std::endl;
+                    << ex.what() << std::endl;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 stop_ = true;
@@ -382,4 +381,3 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
         cv_.notify_all();
     }
 }
-

@@ -97,7 +97,7 @@ private:
     std::deque<Key> pending_;
 
 
-    std::size_t max_batch_size_ = 8000;
+    std::size_t max_batch_size_ = 800;
     std::chrono::nanoseconds max_wait_{std::chrono::milliseconds (1)};
 
     std::thread worker_thread_;

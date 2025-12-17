@@ -78,13 +78,25 @@ static void test_goal_found_within_bound() {
 
     const bool found = DoIteration(env, work, bound, &ZeroHeuristic, next_bound);
 
+    // The start state is already the goal, so DoIteration must report success.
     assert(found);
-    assert(work.is_done());
-    assert(work.stack_size() == 0);
+
+    // With the new Work semantics, finding a goal does NOT consume the work.
+    // The subtree is still considered "not done"; the caller stops because found == true.
+    assert(!work.is_done());
+
+    // There should still be a current frame, representing the root state.
+    assert(work.has_current());
+    const auto &frame = work.current_frame();
+    assert(env.IsGoal(frame.state));
+    assert(frame.g == 0);
+
+    // The bound was sufficient to reach the goal, so next_bound should remain INF_INT.
     assert(next_bound == INF_INT);
 
     std::cout << "[OK] test_goal_found_within_bound\n";
 }
+
 
 /**
  * Test 2: Expanding a non-goal root and pushing its children.
@@ -101,7 +113,7 @@ static void test_goal_found_within_bound() {
  *   - stack_size() equals the branching factor from 'start'.
  *   - The top node on the stack is one of these successors, with g = 1.
  */
-static void test_expand_non_goal_root_push_children() {
+static void test_expand_non_goal_root_descend_child() {
     StpEnv env;
     puzzle15_state goal; // goal state
 
@@ -114,6 +126,7 @@ static void test_expand_non_goal_root_push_children() {
     assert(!env.IsGoal(start));
 
     std::vector<StpEnv::Action> empty_path;
+
     TestWork work(start, empty_path);
 
     constexpr int bound = 10;
@@ -124,27 +137,38 @@ static void test_expand_non_goal_root_push_children() {
 
     bool found = DoIteration(env, work, bound, &ZeroHeuristic, next_bound);
 
+    // No solution should be found in a single iteration.
     assert(!found);
+
+    // Work should not be marked as done after expanding the root once.
     assert(!work.is_done());
-    assert(work.stack_size() == moves_from_start.size());
 
-    const auto& top = work.top_node();
-    assert(top.g == 1);
+    // In the new Work implementation we expect to have a current DFS node.
+    assert(work.has_current());
 
-    bool top_is_child = false;
+    const auto &frame = work.current_frame();
+
+    // Since the prefix path is empty, a direct child of the root must have g = 1.
+    assert(frame.g == 1);
+
+    // Verify that the current state is one of the children of the start state.
+    bool current_is_child = false;
     for (StpEnv::Action a : moves_from_start) {
         puzzle15_state child = start;
         env.ApplyAction(child, a);
-        if (child.pack() == top.state.pack()) {
-            top_is_child = true;
+        if (child.pack() == frame.state.pack()) {
+            current_is_child = true;
             break;
         }
     }
-    assert(top_is_child);
+    assert(current_is_child);
+
+    // With ZeroHeuristic and a large enough bound, next_bound should remain INF_INT.
     assert(next_bound == INF_INT);
 
-    std::cout << "[OK] test_expand_non_goal_root_push_children\n";
+    std::cout << "[OK] test_expand_non_goal_root_descend_child\n";
 }
+
 
 /**
  * Test 3: Calling DoIteration on a finished Work is a no-op.
@@ -161,28 +185,39 @@ static void test_expand_non_goal_root_push_children() {
  */
 static void test_do_iteration_on_finished_work_is_noop() {
     StpEnv env;
-    puzzle15_state start; // goal
+    puzzle15_state start; // goal state
     std::vector<StpEnv::Action> empty_path;
 
     TestWork work(start, empty_path);
+
     constexpr int bound = 0;
     int next_bound = INF_INT;
 
     bool found1 = DoIteration(env, work, bound, &ZeroHeuristic, next_bound);
+
+    // First call must find the goal at the root.
     assert(found1);
-    assert(work.is_done());
-    assert(work.stack_size() == 0);
+    assert(work.has_current());
+    const auto &frame1 = work.current_frame();
+    assert(env.IsGoal(frame1.state));
+    assert(frame1.g == 0);
 
     const int next_before = next_bound;
 
-    bool found2 = DoIteration(env, work, bound, &ZeroHeuristic, next_bound);
-    assert(!found2);
-    assert(work.is_done());
-    assert(work.stack_size() == 0);
+    // Second call on the same Work should not break invariants.
+    // It is allowed to either immediately rediscover the same goal
+    // or simply return without changing anything, but it must not
+    // change next_bound or the fact that the current frame is the goal.
+    (void)DoIteration(env, work, bound, &ZeroHeuristic, next_bound);
+
     assert(next_bound == next_before);
+    assert(work.has_current());
+    const auto &frame2 = work.current_frame();
+    assert(env.IsGoal(frame2.state));
 
     std::cout << "[OK] test_do_iteration_on_finished_work_is_noop\n";
 }
+
 
 /**
  * Test 4: Threshold update on pruned nodes.
@@ -212,13 +247,19 @@ static void test_threshold_updated_on_pruned_node() {
 
     bool found = DoIteration(env, work, bound, &OneHeuristic, next_bound);
 
+    // Root should be pruned because f(start) = g + h = 1 > bound = 0.
     assert(!found);
+
+    // Pruning the root exhausts this Work's subtree.
     assert(work.is_done());
-    assert(work.stack_size() == 0);
+    assert(!work.has_current());
+
+    // next_bound must be updated to the minimal f-value > bound, which is 1.
     assert(next_bound == 1);
 
     std::cout << "[OK] test_threshold_updated_on_pruned_node\n";
 }
+
 
 /**
  * Test 5: Real PDB heuristic on a non-goal state.
@@ -261,11 +302,17 @@ static void test_pdb_heuristic_on_non_goal_state() {
 
         bool found = DoIteration(env, work, bound, &PdbHeuristic, local_next_bound);
 
+        // Root is pruned, so no goal found.
         assert(!found);
+
+        // Pruning the root exhausts this Work's subtree.
         assert(work.is_done());
-        assert(work.stack_size() == 0);
-        assert(local_next_bound == h); // minimal f > bound
+        assert(!work.has_current());
+
+        // next_bound is updated to the minimal f-value > bound, which is h(start).
+        assert(local_next_bound == h);
     }
+
 
     // -------- Scenario B: bound large enough -> expand root, no threshold update --------
     {
@@ -280,7 +327,6 @@ static void test_pdb_heuristic_on_non_goal_state() {
 
         assert(!found);                      // start is not a goal
         assert(!work.is_done());             // children were pushed
-        assert(work.stack_size() == moves_from_start.size());
         assert(local_next_bound == INF_INT); // no pruned nodes yet
     }
 
@@ -293,7 +339,7 @@ static void test_pdb_heuristic_on_non_goal_state() {
  */
 void DoIterationTests::RunAll() {
     test_goal_found_within_bound();
-    test_expand_non_goal_root_push_children();
+    test_expand_non_goal_root_descend_child();
     test_do_iteration_on_finished_work_is_noop();
     test_threshold_updated_on_pruned_node();
     test_pdb_heuristic_on_non_goal_state();

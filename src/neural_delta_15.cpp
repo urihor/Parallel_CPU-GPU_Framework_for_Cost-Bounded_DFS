@@ -15,6 +15,14 @@
 #include <stdexcept>
 
 namespace neural15 {
+    // Implementation details for NeuralDelta15 (PIMPL idiom).
+    //
+    // Holds:
+    //   * Two TorchScript models:
+    //       - model_1_7  : network for tiles 1–7
+    //       - model_8_15 : network for tiles 8–15
+    //   * delta_vals_*   : mapping from predicted class index to delta value.
+    //   * device         : CPU or CUDA device on which the models run.
     struct NeuralDelta15::Impl {
         torch::jit::script::Module model_1_7;
         torch::jit::script::Module model_8_15;
@@ -28,6 +36,17 @@ namespace neural15 {
 
     // ===== Utilities =====
 
+    // Load an array of integer delta values from a JSON file.
+    //
+    // The file format is assumed to be a simple JSON array of integers,
+    // for example: [0, 1, -1, 2, ...].
+    //
+    // We parse it manually in a very permissive way:
+    //   * scan the file as text
+    //   * extract sequences of characters that look like integers
+    //   * convert them via std::stoi
+    //
+    // On failure to open the file, throws std::runtime_error.
     static std::vector<int> load_delta_values_json(const std::string &path) {
         std::ifstream in(path);
         if (!in) {
@@ -58,7 +77,13 @@ namespace neural15 {
         return result;
     }
 
-    // פונקציה שעושה טנזור one-hot לפטרן 1-7
+    // Build a one-hot tensor input for the 1–7 pattern, single state.
+    //
+    // Layout:
+    //   * input shape: [B=1, C=7, H=4, W=4]
+    //   * channel c (0..6) corresponds to tile (c+1)
+    //   * input[0, c, r, col] = 1.0 if tile (c+1) is at position (r, col)
+    //   * all other entries are 0
     static torch::Tensor make_input_1_7(const puzzle15_state &s, torch::Device device) {
         const auto &tiles = s.tiles; // std::array<puzzle15_state::Tile, puzzle15_state::Size>
 
@@ -83,7 +108,11 @@ namespace neural15 {
         return input;
     }
 
-    // אותו דבר לפטרן 8-15
+    // Same idea as make_input_1_7, but for the 8–15 pattern.
+    //
+    // Layout:
+    //   * input shape: [B=1, C=8, H=4, W=4]
+    //   * channel c (0..7) corresponds to tile (8 + c)
     static torch::Tensor make_input_8_15(const puzzle15_state &s, torch::Device device) {
         const auto &tiles = s.tiles;
 
@@ -108,28 +137,34 @@ namespace neural15 {
         return input;
     }
 
+    // Batched version of the 1–7 pattern input builder.
+    //
+    // Layout:
+    //   * input shape: [B, C=7, H=4, W=4]
+    //   * Batch is built on CPU memory; if device is CUDA, we use pinned
+    //     memory and then perform a single async transfer to the GPU.
     static torch::Tensor make_input_1_7_batch(const std::vector<puzzle15_state> &states,
-                                          torch::Device device) {
+                                              torch::Device device) {
         const int B = static_cast<int>(states.size());
         const int C = 7;
         const int H = 4;
         const int W = 4;
 
-        // Build on CPU (optionally pinned if we will copy to CUDA)
+        // Build on CPU (optionally pinned if we will copy to CUDA).
         auto cpu_opts = torch::TensorOptions()
-            .dtype(torch::kFloat32)
-            .device(torch::kCPU)
-            .pinned_memory(device.is_cuda());
+                .dtype(torch::kFloat32)
+                .device(torch::kCPU)
+                .pinned_memory(device.is_cuda());
 
         torch::Tensor input_cpu = torch::zeros({B, C, H, W}, cpu_opts);
 
-        float* p = input_cpu.data_ptr<float>();
+        float *p = input_cpu.data_ptr<float>();
         const int strideC = H * W;
         const int strideB = C * strideC;
 
         for (int b = 0; b < B; ++b) {
             const auto &tiles = states[b].tiles;
-            float* base = p + b * strideB;
+            float *base = p + b * strideB;
 
             for (int idx = 0; idx < puzzle15_state::Size; ++idx) {
                 std::uint8_t tile = tiles[idx];
@@ -142,37 +177,41 @@ namespace neural15 {
             }
         }
 
-        // Single transfer to GPU (if needed)
+        // Single transfer to GPU (if needed).
         if (device.is_cuda()) {
             return input_cpu.to(device, /*non_blocking=*/true);
         }
         return input_cpu;
     }
 
-
-
+    // Batched version of the 8–15 pattern input builder.
+    //
+    // Layout:
+    //   * input shape: [B, C=8, H=4, W=4]
+    //   * Batch is built on CPU memory; if device is CUDA, we use pinned
+    //     memory and then perform a single async transfer to the GPU.
     static torch::Tensor make_input_8_15_batch(const std::vector<puzzle15_state> &states,
-                                          torch::Device device) {
+                                               torch::Device device) {
         const int B = static_cast<int>(states.size());
         const int C = 8;
         const int H = 4;
         const int W = 4;
 
-        // Build on CPU (optionally pinned if we will copy to CUDA)
+        // Build on CPU (optionally pinned if we will copy to CUDA).
         auto cpu_opts = torch::TensorOptions()
-            .dtype(torch::kFloat32)
-            .device(torch::kCPU)
-            .pinned_memory(device.is_cuda());
+                .dtype(torch::kFloat32)
+                .device(torch::kCPU)
+                .pinned_memory(device.is_cuda());
 
         torch::Tensor input_cpu = torch::zeros({B, C, H, W}, cpu_opts);
 
-        float* p = input_cpu.data_ptr<float>();
+        float *p = input_cpu.data_ptr<float>();
         const int strideC = H * W;
         const int strideB = C * strideC;
 
         for (int b = 0; b < B; ++b) {
             const auto &tiles = states[b].tiles;
-            float* base = p + b * strideB;
+            float *base = p + b * strideB;
 
             for (int idx = 0; idx < puzzle15_state::Size; ++idx) {
                 std::uint8_t tile = tiles[idx];
@@ -185,22 +224,34 @@ namespace neural15 {
             }
         }
 
-        // Single transfer to GPU (if needed)
+        // Single transfer to GPU (if needed).
         if (device.is_cuda()) {
             return input_cpu.to(device, /*non_blocking=*/true);
         }
         return input_cpu;
     }
 
-
-
     // ===== NeuralDelta15 methods =====
 
+    // Singleton accessor for NeuralDelta15.
     NeuralDelta15 &NeuralDelta15::instance() {
         static NeuralDelta15 inst;
         return inst;
     }
 
+    // Initialize the neural models and delta tables.
+    //
+    // - If already initialized, this is a no-op.
+    // - Chooses a device: CUDA if available, otherwise CPU.
+    // - Loads:
+    //     * TorchScript models:
+    //         model_dir + "/pdb_1_7_ens2.pt"
+    //         model_dir + "/pdb_8_15_ens3.pt"
+    //     * Delta value lookup tables from JSON:
+    //         model_dir + "/delta_values_1_7.json"
+    //         model_dir + "/delta_values_8_15.json"
+    //
+    // On any load failure, throws std::runtime_error.
     void NeuralDelta15::initialize(const std::string &model_dir) {
         if (initialized_) {
             return;
@@ -208,7 +259,7 @@ namespace neural15 {
 
         impl_ = std::make_unique<Impl>();
 
-        // בוחרים device – אם CUDA זמין נשתמש בו
+        // Choose device: use CUDA if available, otherwise CPU.
         if (torch::cuda::is_available()) {
             impl_->device = torch::Device(torch::kCUDA);
         } else {
@@ -233,6 +284,16 @@ namespace neural15 {
         initialized_ = true;
     }
 
+    // Compute the neural delta for the 1–7 pattern for a single state.
+    //
+    // Steps:
+    //   1. Build input tensor using make_input_1_7.
+    //   2. Run the 1–7 model to obtain logits.
+    //   3. Take argmax over classes to get a class index.
+    //   4. Map class index to an integer delta via delta_vals_1_7.
+    //
+    // Throws std::runtime_error if not initialized or if the class index
+    // is out of range for the delta table.
     int NeuralDelta15::delta_1_7(const puzzle15_state &s) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -252,6 +313,7 @@ namespace neural15 {
         return impl_->delta_vals_1_7[static_cast<size_t>(pred)];
     }
 
+    // Same as delta_1_7, but for the 8–15 pattern.
     int NeuralDelta15::delta_8_15(const puzzle15_state &s) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -269,6 +331,17 @@ namespace neural15 {
         return impl_->delta_vals_8_15[static_cast<size_t>(pred)];
     }
 
+    // Batched version of delta_1_7.
+    //
+    // Input:
+    //   states - vector of puzzle states.
+    //
+    // Output:
+    //   vector<int> of size states.size(), where each entry is the delta
+    //   for the corresponding state, according to the 1–7 model.
+    //
+    // Throws std::runtime_error if not initialized or if any predicted
+    // class index is out of range.
     std::vector<int> NeuralDelta15::delta_1_7_batch(const std::vector<puzzle15_state> &states) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -302,6 +375,7 @@ namespace neural15 {
         return result;
     }
 
+    // Batched version of delta_8_15.
     std::vector<int> NeuralDelta15::delta_8_15_batch(const std::vector<puzzle15_state> &states) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -332,12 +406,20 @@ namespace neural15 {
         return result;
     }
 
+    // Compute h_M(s) given an already known Manhattan heuristic value.
+    //
+    // h_M(s) = manhattan_heuristic + delta_1_7(s) + delta_8_15(s)
     int NeuralDelta15::h_M(const puzzle15_state &s, int manhattan_heuristic) const {
         int d1 = delta_1_7(s);
         int d2 = delta_8_15(s);
         return manhattan_heuristic + d1 + d2;
     }
 
+    // Compute h_M(s) for a single state, including the base heuristic.
+    //
+    // Currently the Manhattan part is set to 0 here (placeholder).
+    // Replace md = 0 with a call to manhattan_15(s) (or similar) to use
+    // the true Manhattan heuristic.
     int NeuralDelta15::h_M_single(const puzzle15_state &s) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -347,6 +429,13 @@ namespace neural15 {
         return h_M(s, md);
     }
 
+    // Batched version of h_M(s).
+    //
+    // Steps:
+    //   1. Compute batched deltas for 1–7 and 8–15 on the GPU.
+    //   2. For each state, add the base heuristic (currently md = 0) and deltas.
+    //
+    // Returns a vector<int> of size states.size(), with h_M for each state.
     std::vector<int> NeuralDelta15::h_M_batch(const std::vector<puzzle15_state> &states) const {
         if (!initialized_) {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
@@ -355,7 +444,7 @@ namespace neural15 {
             return {};
         }
 
-        // 1. דלתא לפטרן 1–7 ו-8–15 ב-batch, על ה-GPU
+        // 1. Batched deltas for patterns 1–7 and 8–15 on the GPU.
         NVTX_RANGE("NN: h_M_batch");
         std::vector<int> d1 = delta_1_7_batch(states);
         std::vector<int> d2 = delta_8_15_batch(states);
@@ -364,7 +453,7 @@ namespace neural15 {
             throw std::runtime_error("h_M_batch: delta batch size mismatch");
         }
 
-        // 2. מנהטן לכל מצב (CPU – זול יחסית)
+        // 2. Manhattan for each state (CPU – relatively cheap).
         std::vector<int> result;
         result.reserve(states.size());
         for (std::size_t i = 0; i < states.size(); ++i) {
@@ -377,6 +466,15 @@ namespace neural15 {
         return result;
     }
 
+    // Initialize a default NeuralBatchService that uses NeuralDelta15::h_M_batch
+    // to evaluate batches of states asynchronously (e.g. in the GPU worker).
+    //
+    // This:
+    //   * Sets up a BatchComputeFn that calls NeuralDelta15::instance().h_M_batch(...)
+    //   * Starts the global NeuralBatchService with:
+    //       max_batch_size = 800
+    //       max_wait       = 200 microseconds
+    //   * Enables neural batching in the batch IDA* code via set_neural_batch_enabled(true).
     void init_default_batch_service() {
         auto batch_fn = [](const std::vector<puzzle15_state> &batch,
                            std::vector<int> &out) {
@@ -385,8 +483,8 @@ namespace neural15 {
 
         NeuralBatchService::instance().start(
             batch_fn,
-            /*max_batch_size=*/8000,
-            std::chrono::microseconds(100)
+            /*max_batch_size=*/800,
+            std::chrono::microseconds(200)
         );
 
         batch_ida::set_neural_batch_enabled(true);

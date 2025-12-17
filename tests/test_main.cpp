@@ -6,7 +6,7 @@
 #include "test_generate_work.h"
 #include "test_do_iteration.h"
 #include "test_cb-dfs.h"
-#include "test_ida_star_korf_examples.h" // כמו שהיה אצלך
+#include "test_ida_star_korf_examples.h" // Korf's 100 benchmark instances
 
 void RunPuzzle15StateTests();
 void RunStpEnvTests();
@@ -36,7 +36,7 @@ TEST(Puzzle15State, LegacySuite) { RunPuzzle15StateTests(); }
 TEST(StpEnv,        LegacySuite) { RunStpEnvTests(); }
 TEST(GenerateWork,  LegacySuite) { GenerateWorkTests::RunAll(); }
 
-// תלוי PDB -> לא בונים PDB ב-CI, רק מריצים אם יש קבצים
+// PDB-dependent tests -> we do not build PDBs in CI, only run if files already exist
 TEST(DoIteration, RequiresPdb78) {
     if (!have_pdb78()) GTEST_SKIP() << "Missing PDB_1_7/PDB_8_15 (no PDB generation in tests).";
     DoIterationTests::RunAll();
@@ -47,7 +47,7 @@ TEST(CBDfs, RequiresPdb78) {
     CBDfsTests::RunAll();
 }
 
-// זה גם תלוי PDB וגם כבד מאוד -> תכבאי כברירת מחדל
+// Also PDB-dependent and very slow -> disabled by default
 TEST(Korf100, DISABLED_RequiresPdb78AndSlow) {
     if (!have_pdb78()) GTEST_SKIP() << "Missing PDB_1_7/PDB_8_15.";
     Korf100Tests::RunAll();
