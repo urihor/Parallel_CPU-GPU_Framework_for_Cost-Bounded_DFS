@@ -108,60 +108,90 @@ namespace neural15 {
         return input;
     }
 
-    // גרסת batch ל-1-7
     static torch::Tensor make_input_1_7_batch(const std::vector<puzzle15_state> &states,
-                                              torch::Device device) {
+                                          torch::Device device) {
         const int B = static_cast<int>(states.size());
         const int C = 7;
         const int H = 4;
         const int W = 4;
 
-        auto options = torch::TensorOptions().dtype(torch::kFloat32).device(device);
-        torch::Tensor input = torch::zeros({B, C, H, W}, options);
+        // Build on CPU (optionally pinned if we will copy to CUDA)
+        auto cpu_opts = torch::TensorOptions()
+            .dtype(torch::kFloat32)
+            .device(torch::kCPU)
+            .pinned_memory(device.is_cuda());
+
+        torch::Tensor input_cpu = torch::zeros({B, C, H, W}, cpu_opts);
+
+        float* p = input_cpu.data_ptr<float>();
+        const int strideC = H * W;
+        const int strideB = C * strideC;
 
         for (int b = 0; b < B; ++b) {
             const auto &tiles = states[b].tiles;
+            float* base = p + b * strideB;
+
             for (int idx = 0; idx < puzzle15_state::Size; ++idx) {
                 std::uint8_t tile = tiles[idx];
                 if (tile >= 1 && tile <= 7) {
                     int ch = static_cast<int>(tile) - 1;
                     int r = idx / 4;
                     int c = idx % 4;
-                    input[b][ch][r][c] = 1.0f;
+                    base[ch * strideC + r * W + c] = 1.0f;
                 }
             }
         }
 
-        return input;
+        // Single transfer to GPU (if needed)
+        if (device.is_cuda()) {
+            return input_cpu.to(device, /*non_blocking=*/true);
+        }
+        return input_cpu;
     }
 
 
-    // גרסת batch ל-8-15
+
     static torch::Tensor make_input_8_15_batch(const std::vector<puzzle15_state> &states,
-                                               torch::Device device) {
+                                          torch::Device device) {
         const int B = static_cast<int>(states.size());
         const int C = 8;
         const int H = 4;
         const int W = 4;
 
-        auto options = torch::TensorOptions().dtype(torch::kFloat32).device(device);
-        torch::Tensor input = torch::zeros({B, C, H, W}, options);
+        // Build on CPU (optionally pinned if we will copy to CUDA)
+        auto cpu_opts = torch::TensorOptions()
+            .dtype(torch::kFloat32)
+            .device(torch::kCPU)
+            .pinned_memory(device.is_cuda());
+
+        torch::Tensor input_cpu = torch::zeros({B, C, H, W}, cpu_opts);
+
+        float* p = input_cpu.data_ptr<float>();
+        const int strideC = H * W;
+        const int strideB = C * strideC;
 
         for (int b = 0; b < B; ++b) {
             const auto &tiles = states[b].tiles;
+            float* base = p + b * strideB;
+
             for (int idx = 0; idx < puzzle15_state::Size; ++idx) {
                 std::uint8_t tile = tiles[idx];
                 if (tile >= 8 && tile <= 15) {
                     int ch = static_cast<int>(tile) - 8;
                     int r = idx / 4;
                     int c = idx % 4;
-                    input[b][ch][r][c] = 1.0f;
+                    base[ch * strideC + r * W + c] = 1.0f;
                 }
             }
         }
 
-        return input;
+        // Single transfer to GPU (if needed)
+        if (device.is_cuda()) {
+            return input_cpu.to(device, /*non_blocking=*/true);
+        }
+        return input_cpu;
     }
+
 
 
     // ===== NeuralDelta15 methods =====

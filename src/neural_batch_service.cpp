@@ -340,8 +340,8 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
         auto waited_ms =
             std::chrono::duration<double, std::milli>(end_collect - start_collect).count();
 
-        std::cout << "[NeuralBatchService] batch size: " << local_batch.size()
-                  << ", waited: " << waited_ms << " ms before GPU call\n";
+        /*std::cout << "[NeuralBatchService] batch size: " << local_batch.size()
+                  << ", waited: " << waited_ms << " ms before GPU call\n";*/
 
         // Compute on GPU/CPU
         hs.resize(local_batch.size());
@@ -367,7 +367,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
             NVTX_RANGE("NBS: store results");
 
             std::lock_guard<std::mutex> lock(mutex_);
-            const std::size_t n = std::min(local_batch.size(), hs.size());
+            const std::size_t n = (std::min)(local_batch.size(), hs.size());
             for (std::size_t i = 0; i < n; ++i) {
                 const Key key = local_keys[i];
                 auto it = entries_.find(key);

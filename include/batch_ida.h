@@ -143,7 +143,7 @@ namespace batch_ida {
         if (num_threads > works.size()) {
             num_threads = works.size();
         }
-        std::cout << "num of threads: "<<num_threads << std::endl;
+        //std::cout << "num of threads: "<<num_threads << std::endl;
 
         // --------------------------------------------------
         // 2) IDA* outer loop: reuse the same works each time.

@@ -79,7 +79,7 @@ bool DoIteration(
 
     // If f > bound, update next_bound and prune.
     if (f > bound) {
-        next_bound = std::min(next_bound, f);
+        next_bound = (std::min)(next_bound, f);
         work.pop_frame();
         return false;
     }

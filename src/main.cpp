@@ -20,6 +20,8 @@
 #include "korf_examples.h"
 #include "neural_delta_15.h"
 #include "manhattan_15.h"
+#include "nvtx_helpers.h"
+
 
 
 namespace fs = std::filesystem;
@@ -163,6 +165,7 @@ static void preload_pdbs_to_ram() {
 
 int main() {
     try {
+
         // Build / verify the 7/8 PDBs in the current build directory
         const fs::path out_dir = fs::current_path();
         //ensure_78(out_dir);
