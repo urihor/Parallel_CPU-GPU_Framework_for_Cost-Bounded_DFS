@@ -78,7 +78,7 @@ static void test_dinit1_branching_matches() {
 static void test_best_len_one_move_from_goal() {
     // Arrange: create a start that is exactly one move away from the goal
     StpEnv env;
-    puzzle15_state start;               // goal
+    puzzle15_state start; // goal
     {
         auto acts = env.GetActions(start);
         assert(!acts.empty() && "goal state must have at least one legal move");

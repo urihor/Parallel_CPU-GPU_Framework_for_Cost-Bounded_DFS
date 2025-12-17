@@ -10,7 +10,6 @@
 #include <iostream>
 #include <filesystem>
 
-// Forward declarations from your existing code
 std::vector<puzzle15_state> MakeKorf100StatesForOurGoal();
 
 // Simple adapter for PDB-based heuristic

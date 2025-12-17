@@ -100,7 +100,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
 
             bool found = batch_ida::BatchIDA(env,
                                             start,              // non-const lvalue
-                                            &PdbHeuristic744,    // int(const StpEnv::State&)
+                                            &PdbHeuristic78,    // int(const StpEnv::State&)
                                             d_init,
                                             work_num,
                                             solution_cost,
@@ -109,7 +109,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
             if (found) {
                 std::cout << "board number: " << board_num << std::endl;
                 std::cout << "Solution cost = " << solution_cost << std::endl;
-                //PrintSolution(env, start, solution);
+                PrintSolution(env, start, solution);
                 auto end = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<double> duration_s = end - start_time;
                 std::cout << "duration time: " << duration_s.count() <<" seconds";
@@ -122,12 +122,6 @@ void run_batch_ida_example(const std::vector<puzzle15_state>& boards) {
         }
 
     }
-
-
-
-
-
-
 
 // Force PDB tables to be loaded into RAM before timing starts
 static void preload_pdbs_to_ram() {
@@ -145,7 +139,7 @@ int main() {
     try {
         // Build / verify the 7/8 PDBs in the current build directory
         const fs::path out_dir = fs::current_path();
-        ensure_78(out_dir);
+        //ensure_78(out_dir);
         // Prepare the 100 Korf instances mapped to our goal
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
@@ -153,7 +147,7 @@ int main() {
         boards = MakeKorf100StatesForOurGoal();
         std::cout<< std::endl << std::endl;
         std::cout << "=============================================" << std::endl;
-        std::cout << "using pdb 744" << std::endl;
+        std::cout << "using pdb 78" << std::endl;
         std::cout << "=============================================" << std::endl;
         std::cout<< std::endl << std::endl;
 

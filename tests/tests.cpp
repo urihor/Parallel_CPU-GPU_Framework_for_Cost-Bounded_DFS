@@ -10,10 +10,11 @@
 #include "puzzle15_state.h"
 #include "puzzle_actions.h"
 
-// ===== עזרים =====
+// ===== Helpers =====
 static bool hasMove(const std::vector<StpMove>& v, StpMove m) {
     return std::find(v.begin(), v.end(), m) != v.end();
 }
+
 static bool isOpposite(StpMove a, StpMove b) {
     return (a == StpMove::Up    && b == StpMove::Down) ||
            (a == StpMove::Down  && b == StpMove::Up)   ||
@@ -21,12 +22,12 @@ static bool isOpposite(StpMove a, StpMove b) {
            (a == StpMove::Right && b == StpMove::Left);
 }
 
-// ===== בדיקות עבור puzzle15_state =====
+// ===== Tests for puzzle15_state =====
 void RunPuzzle15StateTests() {
     std::cout << "[state] start\n";
     StpEnv env;
 
-    // 0) בנאי תקין (initializer_list) – צעד יחיד מחזיר ליעד
+    // 0) Valid constructor (initializer_list) – a single move returns to the goal
     {
         puzzle15_state s({ 1,  2,  3,  4,
                            5,  6,  7,  8,
@@ -38,10 +39,10 @@ void RunPuzzle15StateTests() {
         assert(env.IsGoal(s));
     }
 
-    // 1) round-trip pack/unpack על מסלול רנדומי + Undo מלא
+    // 1) Round-trip pack/unpack on a random path + full undo
     {
         std::mt19937 rng(12345);
-        puzzle15_state s; // יעד
+        puzzle15_state s; // goal
         std::vector<StpMove> path;
         path.reserve(200);
 
@@ -70,42 +71,42 @@ void RunPuzzle15StateTests() {
         assert(env.IsGoal(s2));
     }
 
-    // 2) pack/unpack על יעד נקי
+    // 2) pack/unpack on a clean goal state
     {
-        puzzle15_state g;
+        puzzle15_state g; // goal
         auto packed = g.pack();
         auto g2 = puzzle15_state::unpack(packed);
         assert(g2.pack() == g.pack());
     }
 
-    // 3) ולידציה: כפילויות וללא 0  (שימו לב: vector עם גודל 16!)
+    // 3) Validation: duplicates and missing 0 (note: vector has size 16!)
     {
         bool thrown = false;
         try {
             std::vector<std::uint8_t> bad(16);
-            // 1 מופיע פעמיים, ואין 0
+            // 1 appears twice, and 0 is missing
             for (int i = 0; i < 16; ++i)
                 bad[i] = (i == 0 ? 1 : static_cast<std::uint8_t>(i));
-            puzzle15_state t(bad); // מצופה לזרוק
+            puzzle15_state t(bad); // expected to throw
             (void)t;
         } catch (const std::exception&) { thrown = true; }
         assert(thrown && "expected exception on duplicate / missing 0");
     }
 
-    // 4) ולידציה: ערך מחוץ לטווח (16)
+    // 4) Validation: value out of range (16)
     {
         bool thrown = false;
         try {
             std::vector<std::uint8_t> bad(16);
             for (int i = 0; i < 16; ++i) bad[i] = static_cast<std::uint8_t>(i);
-            bad[0] = 16; // מחוץ לטווח 0..15
-            puzzle15_state t(bad); // מצופה לזרוק
+            bad[0] = 16; // out of range 0..15
+            puzzle15_state t(bad); // expected to throw
             (void)t;
         } catch (const std::exception&) { thrown = true; }
         assert(thrown && "expected exception on out-of-range (>=16)");
     }
 
-    // 5) ולידציה: שתי אפסים (חסר ערך אחר)
+    // 5) Validation: two zeros (some other tile is missing)
     {
         bool thrown = false;
         try {
@@ -113,9 +114,9 @@ void RunPuzzle15StateTests() {
                 1,  2,  3,  4,
                 5,  6,  7,  8,
                 9, 10, 11, 12,
-               13,  0,  0, 15 // שני אפסים, חסר 14
+               13,  0,  0, 15 // two zeros, tile 14 is missing
             };
-            puzzle15_state t(bad);
+            puzzle15_state t(bad); // expected to throw
             (void)t;
         } catch (const std::exception&) { thrown = true; }
         assert(thrown && "expected exception on duplicate 0 / missing tile");
@@ -124,14 +125,14 @@ void RunPuzzle15StateTests() {
     std::cout << "[state] OK\n";
 }
 
-// ===== בדיקות עבור StpEnv =====
+// ===== Tests for StpEnv =====
 void RunStpEnvTests() {
     std::cout << "[env] start\n";
     StpEnv env;
 
-    // 1) יעד: חוקיות מהלכים + Apply/Undo + IsGoal
+    // 1) Goal: move legality + Apply/Undo + IsGoal
     {
-        puzzle15_state s; // יעד
+        puzzle15_state s; // goal
         auto acts = env.GetActions(s);
         assert(acts.size() == 2);
         assert(hasMove(acts, StpMove::Up));
@@ -151,9 +152,9 @@ void RunStpEnvTests() {
         assert(env.IsGoal(s));
     }
 
-    // 2) פינה=2, שפה=3, מרכז=4
+    // 2) Corner = 2 moves, edge = 3 moves, center = 4 moves
     {
-        puzzle15_state s; // יעד — נעביר לפינה (0,0)
+        puzzle15_state s; // goal — move blank to corner (0,0)
         env.ApplyAction(s, StpMove::Left);
         env.ApplyAction(s, StpMove::Left);
         env.ApplyAction(s, StpMove::Left);
@@ -173,9 +174,9 @@ void RunStpEnvTests() {
         assert(at_center.size() == 4);
     }
 
-    // 3) “חוקיות” דרך GetActions (לא נוגעים ב-IsLegal הפרטית)
+    // 3) Check move legality indirectly via GetActions (without touching private IsLegal)
     {
-        puzzle15_state s;
+        puzzle15_state s; // goal — move blank to corner again
         env.ApplyAction(s, StpMove::Left);
         env.ApplyAction(s, StpMove::Left);
         env.ApplyAction(s, StpMove::Left);
@@ -190,10 +191,10 @@ void RunStpEnvTests() {
         assert( hasMove(acts, StpMove::Down));
     }
 
-    // 4) מסלול רנדומי + Undo מלא
+    // 4) Random walk + full undo
     {
         std::mt19937 rng(999);
-        puzzle15_state s; // יעד
+        puzzle15_state s; // goal
         std::vector<StpMove> path;
         path.reserve(300);
 

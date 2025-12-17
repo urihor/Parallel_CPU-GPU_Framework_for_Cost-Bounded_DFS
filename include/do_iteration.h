@@ -1,106 +1,94 @@
-//
-// Created by Owner on 16/11/2025.
-//
-
-//
-// Algorithm 4: Subtree expansion (DoIteration) for Batch IDA* / CB-DFS.
-// Generic version that works with any Env (15-puzzle, Rubik's cube, etc.).
-//
 #pragma once
 
+#include <limits>
 #include "work.h"
 
 namespace batch_ida {
-    // Generic heuristic function pointer type.
-    // Env must define a nested State type.
+
     template<class Env>
     using HeuristicFn = int (*)(const typename Env::State &);
 
-    /**
-     * One CB-DFS / Batch IDA* expansion step for a single subtree (Work).
-     *
-     * - env        : search domain (must provide State, Action, GetActions, ApplyAction, IsGoal).
-     * - work       : subtree descriptor and DFS stack.
-     * - bound      : current IDA* threshold on f = g + h.
-     * - heuristic  : heuristic function h(s).
-     * - next_bound : in/out. Must be initialised by the caller to +INF.
-     *                For every pruned node with f > bound, we update:
-     *                    next_bound = min(next_bound, f).
-     *
-     * Returns true if a goal state was found with f <= bound.
-     */
     template<class Env, class Heuristic>
     bool DoIteration(Env &env,
                      WorkFor<Env> &work,
                      int bound,
                      Heuristic heuristic,
-                     int &next_bound) {
-        using State = typename Env::State;
+                     int &next_bound)
+    {
+        using State  = typename Env::State;
         using Action = typename Env::Action;
-        using Node = typename WorkFor<Env>::Node;
 
-        // If this subtree is already exhausted, there is nothing to do.
-        if (work.is_done()) {
-            return false;
+        constexpr int INF = std::numeric_limits<int>::max();
+        next_bound = INF;
+
+        if (work.is_done() || work.goal_found()) {
+            return work.goal_found();
         }
 
-        // Ensure that the DFS stack is initialized with the subtree root.
         work.ensure_initialized();
 
         while (true) {
-            if (work.is_done()) {
-                return false; // no nodes left in this subtree
+            if (!work.has_current()) {
+                // No more nodes left in this subtree.
+                return false;
             }
 
-            Node node = work.pop_node();
+            auto &frame = work.current_frame();
 
-            State &s_mut = node.state;
-            const State &s = s_mut;
-            const int g = node.g;
+            if (!frame.expanded) {
+                const State &s = frame.state;
+                const int g = frame.g;
+                const int h = heuristic(s);
+                const int f = g + h;
 
-            const int h = heuristic(s);
-            const int f = g + h;
+                work.increment_expanded();
 
-            if (f > bound) {
-                // Pruned node; its f-value is a candidate for the next threshold.
-                if (f < next_bound) {
-                    next_bound = f;
+                if (f > bound) {
+                    if (f < next_bound) {
+                        next_bound = f;
+                    }
+                    work.pop_frame();
+                    continue;
                 }
-                // Try another node in this subtree.
-                continue;
+
+                if (env.IsGoal(s)) {
+                    work.mark_goal_current();
+                    return true;
+                }
+
+                frame.actions = env.GetActions(s);
+                frame.next_child_index = 0;
+                frame.expanded = true;
             }
 
-            // Now we know f <= bound: candidate for expansion / goal.
-            if (env.IsGoal(s)) {
-                // Found a solution within the current bound.
-                // Remember where the goal is so we can reconstruct the path later.
-                work.mark_goal_current();
-                return true;
-            }
+            if (frame.next_child_index < frame.actions.size()) {
+                const Action a = frame.actions[frame.next_child_index++];
 
-            auto actions = env.GetActions(s);
-
-            for (Action a: actions) {
-                // For a generic Env we assume ApplyAction returns the successor state.
-                State child = s_mut;
+                State child = frame.state;
                 env.ApplyAction(child, a);
 
-                const int child_g = g + 1; // assume unit-cost edges
-                work.push_node_from_current(child, child_g, a);
-            }
+                const int child_g = frame.g + 1; // uniform cost
+                work.push_child(child, child_g, a);
 
-            // Only a single node is expanded on each DoIteration call.
-            return false;
+                // Only one new node per call.
+                return false;
+            }
+            else {
+                // No more children for this node: backtrack.
+                work.pop_frame();
+                // loop again to find another node or finish the subtree
+            }
         }
     }
 
-    // Convenience overload for raw function-pointer heuristics.
     template<class Env>
     bool DoIteration(Env &env,
                      WorkFor<Env> &work,
                      int bound,
                      HeuristicFn<Env> heuristic,
-                     int &next_bound) {
-        return DoIteration<Env, HeuristicFn<Env> >(env, work, bound, heuristic, next_bound);
+                     int &next_bound)
+    {
+        return DoIteration<Env, HeuristicFn<Env>>(env, work, bound, heuristic, next_bound);
     }
+
 } // namespace batch_ida
