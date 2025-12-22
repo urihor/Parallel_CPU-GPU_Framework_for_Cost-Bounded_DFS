@@ -59,6 +59,7 @@ add_library(bootcamp_core
         src/neural_delta_15.cpp
         src/neural_batch_service.cpp
         src/manhattan_15.cpp
+        src/neural_delta_15_quantile.cpp
 )
 if (BOOTCAMP_ENABLE_NVTX)
     target_compile_definitions(bootcamp_core PUBLIC ENABLE_NVTX)

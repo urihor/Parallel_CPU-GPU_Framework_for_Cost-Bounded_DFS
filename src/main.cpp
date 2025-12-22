@@ -21,6 +21,8 @@
 #include "neural_delta_15.h"
 #include "manhattan_15.h"
 #include "nvtx_helpers.h"
+#include "neural_batch_service.h"
+#include "neural_delta_15_quantile.h"
 
 
 namespace fs = std::filesystem;
@@ -88,14 +90,42 @@ int NeuralHeuristic(const StpEnv::State &s) {
     return neural15::NeuralDelta15::instance().h_M_single(s);
 }
 
+void start_nn_service() {
+    neural15::NeuralDelta15QuantileOptions opt;
+
+    opt.weights_1_7 = { "nn_pdb_1_7_delta_full_ts.pt" };
+
+    opt.weights_8_15 = {
+        "nn_pdb_8_15_delta_lcg_ens0_ts.pt",
+        "nn_pdb_8_15_delta_lcg_ens1_ts.pt",
+        "nn_pdb_8_15_delta_lcg_ens2_ts.pt",
+        "nn_pdb_8_15_delta_lcg_ens3_ts.pt",
+      };
+
+    opt.quantile_q = 0.3;
+    opt.device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    // opt.use_half_on_cuda = true;
+    opt.add_manhattan = true;
+
+    auto nn = std::make_shared<neural15::NeuralDelta15Quantile>(opt);
+
+    NeuralBatchService::instance().start(
+        [nn](const std::vector<puzzle15_state>& batch, std::vector<int>& hs) {
+            nn->compute_batch(batch, hs);
+        },
+        /*max_batch_size=*/800,
+        /*max_wait=*/std::chrono::microseconds(200)
+    );
+    batch_ida::set_neural_batch_enabled(true);
+}
+
 // Run Batch IDA* on a list of boards using the 7/8 PDB heuristic
 void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
     StpEnv env;
 
     int d_init = 13; // initial depth bound for GenerateWork
-    int work_num = 12; // number of logical stacks
+    int work_num = 22; // number of logical stacks
     int solution_cost = 0;
-
     std::vector<StpEnv::Action> solution;
     // Decide which heuristic to pass to BatchIDA.
     int (*heuristic)(const StpEnv::State &) = &PdbHeuristic78;
@@ -120,10 +150,10 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         auto start = board; // or: auto start = board;
 
         solution.clear();
-        /*if ((batch_ida::neural_batch_enabled() &&
+        if ((batch_ida::neural_batch_enabled() &&
         NeuralBatchService::instance().is_running())) {
                 NeuralBatchService::instance().reset_for_new_bound();
-        }*/
+        }
         NVTX_RANGE("Solve one board");
         bool found = batch_ida::BatchIDA(env,
                                         start, // non-const lvalue
@@ -169,6 +199,8 @@ static void preload_pdbs_to_ram() {
 
 
 int main() {
+
+
     try {
         // Build / verify the 7/8 PDBs in the current build directory
         const fs::path out_dir = fs::current_path();
@@ -201,17 +233,20 @@ int main() {
 
         std::cout << "torch::cuda::is_available() = "
                 << (torch::cuda::is_available() ? "true" : "false") << std::endl;
+        torch::set_num_threads(1);
+        torch::set_num_interop_threads(1);
 
-        NeuralDelta15::instance().initialize(".");
+        //NeuralDelta15::instance().initialize(".");
 
-        neural15::init_default_batch_service();
+        //neural15::init_default_batch_service();
+        start_nn_service();
         NVTX_RANGE("BOOTCAMP_SEARCH_RANGE_123");
-        run_batch_ida_example(boards);
+        //run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
-        //boards2.emplace_back(puzzle15_state{9,1,3,4,2,5,6,8,10,14,7,12,13,11,15,0});
+        boards2.emplace_back(puzzle15_state{9,1,3,4,2,5,6,8,10,14,7,12,13,11,15,0});
         //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
         //boards2.emplace_back(boards[87]);
-        //run_batch_ida_example(boards2);
+        run_batch_ida_example(boards2);
         NeuralBatchService::instance().shutdown();
 
         std::cout << "[bootcamp_main done]\n";
