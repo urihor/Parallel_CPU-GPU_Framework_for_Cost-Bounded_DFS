@@ -50,18 +50,18 @@ public:
 
     /// A Work is considered "done" when its DFS path is empty
     /// (and it has been initialized at least once).
-    bool is_done() const noexcept {
+    [[nodiscard]] bool is_done() const noexcept {
         return initialized_ && path_.empty();
     }
 
 
     /// Was a goal found somewhere in this subtree?
-    bool goal_found() const noexcept {
+    [[nodiscard]] bool goal_found() const noexcept {
         return goal_found_;
     }
 
     /// Solution depth (g) for this Work (including init prefix), or -1 if no goal.
-    int goal_solution_depth() const noexcept {
+    [[nodiscard]] int goal_solution_depth() const noexcept {
         if (!goal_found_) {
             return -1;
         }
@@ -82,7 +82,7 @@ public:
     }
 
     /// Number of nodes that were expanded in this Work (across all DoIteration calls).
-    std::uint64_t expanded_nodes() const noexcept {
+    [[nodiscard]] std::uint64_t expanded_nodes() const noexcept {
         return expanded_nodes_;
     }
 
@@ -97,10 +97,10 @@ public:
         path_.clear();
 
         Frame root_frame;
-        root_frame.state      = root;
-        root_frame.g          = static_cast<int>(init.size());
+        root_frame.state = root;
+        root_frame.g = static_cast<int>(init.size());
         root_frame.has_parent = false;
-        root_frame.expanded   = false;
+        root_frame.expanded = false;
         root_frame.next_child_index = 0;
         // actions is initially empty; it will be filled when this node is expanded.
 
@@ -109,7 +109,7 @@ public:
     }
 
     /// Is there a current node on the DFS path?
-    bool has_current() const noexcept {
+    [[nodiscard]] bool has_current() const noexcept {
         return initialized_ && !path_.empty();
     }
 

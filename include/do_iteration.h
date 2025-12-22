@@ -63,7 +63,7 @@ bool DoIteration(
         // Non-blocking: try to read h(s) from the batch service.
         if (st == NeuralBatchService::HRequestStatus::Ready) {
             NVTX_MARK("DoIteration: try_get_h HIT");
-            h = h_dummy;              // משתמשים בתוצאה של השירות
+            h = h_dummy;
         } else if (st == NeuralBatchService::HRequestStatus::Pending) {
             NVTX_MARK("DoIteration: try_get_h MISS -> enqueue+yield");
             return false;

@@ -93,7 +93,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
     StpEnv env;
 
     int d_init = 13; // initial depth bound for GenerateWork
-    int work_num = 12; // number of logical stacks
+    int work_num = 22; // number of logical stacks
     int solution_cost = 0;
 
     std::vector<StpEnv::Action> solution;
@@ -120,10 +120,10 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         auto start = board; // or: auto start = board;
 
         solution.clear();
-        /*if ((batch_ida::neural_batch_enabled() &&
+        if ((batch_ida::neural_batch_enabled() &&
         NeuralBatchService::instance().is_running())) {
                 NeuralBatchService::instance().reset_for_new_bound();
-        }*/
+        }
         NVTX_RANGE("Solve one board");
         bool found = batch_ida::BatchIDA(env,
                                         start, // non-const lvalue
