@@ -1,4 +1,4 @@
-name: CMake (Linux self-hosted)
+name: CMake (Linux)
 
 on:
   push:
@@ -14,16 +14,37 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure CMake (Linux + g++)
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ unzip curl
+
+      - name: Cache LibTorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: libtorch-linux-cpu-cxx11abi-shared-with-deps-latest
+
+      - name: Download LibTorch (CPU)
+        if: ${{ !hashFiles('libtorch/**') }}
+        run: |
+          curl -L -o libtorch.zip \
+              https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-2.9.1%2Bcpu.zip          
+          unzip -q libtorch.zip
+          rm libtorch.zip
+
+      - name: Configure CMake
         run: >
           cmake -S . -B build
           -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_C_COMPILER=cc
           -DCMAKE_CXX_COMPILER=g++
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/libtorch
 
       - name: Build
         run: cmake --build build -- -j 4
 
       - name: Run tests
         working-directory: build
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/libtorch/lib:${LD_LIBRARY_PATH}
         run: ctest --output-on-failure
