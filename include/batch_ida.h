@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "work.h"
+#include "neural_delta_15.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
 #include "generate_work.h"   // assumed existing header for Algorithm 2
@@ -79,7 +80,14 @@ namespace batch_ida {
         }
 
         // Initial IDA* threshold.
-        int bound = heuristic(start);
+        int bound = 0;
+        if (batch_ida::neural_batch_enabled() &&
+        NeuralBatchService::instance().is_running()) {
+            bound = neural15::NeuralDelta15::instance().h_M_single(start);
+        }
+        else
+            bound = heuristic(start);
+        bound = heuristic(start);
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.
             return false;
