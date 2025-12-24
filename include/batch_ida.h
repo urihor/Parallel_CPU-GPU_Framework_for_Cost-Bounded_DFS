@@ -24,10 +24,6 @@ namespace batch_ida {
      *     with the current threshold 'bound'.
      *   - Algorithm 4 (DoIteration) as the primitive expansion step.
      *
-     * For now, we do NOT reconstruct the actual solution path. We only return
-     * the solution cost (depth) if a solution is found. Path reconstruction
-     * can be added later by extending Work/Node to store parent pointers.
-     *
      * Template parameters:
      *   Env       - environment type, must provide:
      *                 using State;
@@ -58,7 +54,7 @@ namespace batch_ida {
                   int work_num,
                   int &solution_cost,
                   std::vector<typename Env::Action> &solution,
-                  int num_threads_hint = 0) {
+                  const int num_threads_hint = 0) {
         using Action = typename Env::Action;
         using State = typename Env::State;
 
@@ -92,6 +88,7 @@ namespace batch_ida {
             // Heuristic says "infinite" / unreachable.
             return false;
         }
+
         // --------------------------------------------------
         // 1) Generate initial works ONCE (Algorithm 2).
         // --------------------------------------------------
@@ -100,7 +97,6 @@ namespace batch_ida {
 
         std::vector<Action> empty_history;
 
-        // Used only inside GenerateWork{Dedup}.
         int best_len = INF;
         std::vector<Action> best_sol;
         /*GenerateWork(env,
@@ -127,7 +123,7 @@ namespace batch_ida {
         //std::cout << "num of works: " << works.size() << std::endl;
         // If GenerateWork itself found a solution with cost <= bound,
         // we can stop immediately.
-        if (best_len < INF && best_len <= bound) {
+        if (best_len <= bound) {
             solution_cost = best_len;
             solution = best_sol;
             return true;
@@ -151,6 +147,7 @@ namespace batch_ida {
         if (num_threads > works.size()) {
             num_threads = works.size();
         }
+
         //std::cout << "num of threads: "<<num_threads << std::endl;
 
         // --------------------------------------------------

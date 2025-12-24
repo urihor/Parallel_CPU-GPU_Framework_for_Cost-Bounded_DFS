@@ -156,10 +156,10 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         auto start = board;
 
         solution.clear();
-        /*if ((batch_ida::neural_batch_enabled() &&
+        if ((batch_ida::neural_batch_enabled() &&
         NeuralBatchService::instance().is_running())) {
                 NeuralBatchService::instance().reset_for_new_bound();
-        }*/
+        }
         NVTX_RANGE("Solve one board");
         bool found = batch_ida::BatchIDA(env,
                                         start, // non-const lvalue
