@@ -208,7 +208,9 @@ int main() {
         const fs::path out_dir = fs::current_path();
         ensure_78(out_dir);
         // Prepare the 100 Korf instances mapped to our goal
-        const std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
+        //const std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
+        const std::vector<puzzle15_state> boards = MakeKorf50StatesForOurGoal();
+
 
         preload_pdbs_to_ram();
 

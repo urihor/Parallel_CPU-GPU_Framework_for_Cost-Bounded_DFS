@@ -265,3 +265,17 @@ std::vector<puzzle15_state> MakeKorf100StatesForOurGoal() {
 
     return states;
 }
+
+std::vector<puzzle15_state> MakeKorf50StatesForOurGoal() {
+    const std::vector<Board> boards = MakeKorf100BoardsForOurGoal();
+    std::vector<puzzle15_state> states;
+    states.reserve(boards.size());
+
+    for (int i = 0 ; i< 50 ; i++) {
+        Board b = boards[i];
+        std::vector v(b.begin(), b.end());
+        states.emplace_back(v);
+    }
+
+    return states;
+}
