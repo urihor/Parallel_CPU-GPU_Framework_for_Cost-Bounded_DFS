@@ -356,6 +356,7 @@ void NeuralBatchService::worker_loop(BatchComputeFn fn) {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 stop_ = true;
+                running_ = false;
             }
             cv_.notify_all();
             return;
