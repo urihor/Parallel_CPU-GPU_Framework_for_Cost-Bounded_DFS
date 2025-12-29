@@ -4,6 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <utility>
+#include <iostream>
 
 #include <torch/script.h>   // torch::jit::load
 
@@ -145,7 +146,18 @@ struct NeuralDelta15Quantile::Impl {
 
         for (size_t i = 0; i < batch.size(); ++i) {
             const int base = opt.add_manhattan ? manhattan_full(batch[i]) : 0;
-            hs[i] = base + (int)a1[i] + (int)a2[i];
+            /*std::cout << "1..7: " << (int)a1[i] << std::endl;
+            std::cout << "8..15: " << (int)a2[i] << std::endl;
+            std::cout << "manhattan: " << base << std::endl;*/
+
+            hs[i] = base + (int)a1[i] + (int)a2[i] ;
+            /*if (hs[i] >= 4)
+                hs[i]-=4;
+            if (hs[i] <=4)
+                hs[i] =0;
+            if (hs[i] ==5)
+                hs[i] =1;*/
+
         }
     }
 

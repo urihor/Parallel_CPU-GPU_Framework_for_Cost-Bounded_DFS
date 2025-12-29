@@ -21,7 +21,7 @@ namespace neural15 {
         std::vector<std::string> weights_8_15; // can be single or ensemble (ens0..ens3)
 
         // quantile parameter (default q=0.3)
-        double quantile_q = 0.3;
+        double quantile_q = 0.2;
 
         // device
         torch::Device device = torch::kCPU;

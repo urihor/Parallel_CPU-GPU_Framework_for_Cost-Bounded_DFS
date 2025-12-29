@@ -180,7 +180,6 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration_s = end - start_time_a;
     std::cout << "duration time of all boards: " << duration_s.count() << " seconds";
-    std::cout << "work_num: " << work_num << std::endl;
     std::cout << std::endl << std::endl;
 
 
@@ -241,12 +240,12 @@ int main() {
         //neural15::init_default_batch_service();
         start_nn_service();
         NVTX_RANGE("BOOTCAMP_SEARCH_RANGE_123");
-        //run_batch_ida_example(boards);
+        run_batch_ida_example(boards);
         std::vector<puzzle15_state> boards2;
         boards2.emplace_back(puzzle15_state{9,1,3,4,2,5,6,8,10,14,7,12,13,11,15,0});
         //boards2.emplace_back(puzzle15_state{0,12,9,13,15,11,10,14,3,7,2,5,4,8,6,1});
         //boards2.emplace_back(boards[87]);
-        run_batch_ida_example(boards2);
+        //run_batch_ida_example(boards2);
         NeuralBatchService::instance().shutdown();
 
         std::cout << "[bootcamp_main done]\n";

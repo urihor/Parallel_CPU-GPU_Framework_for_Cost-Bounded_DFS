@@ -2,6 +2,7 @@
 #include "neural_batch_service.h"
 #include "work.h"
 #include "nvtx_helpers.h"
+#include <iostream>
 
 namespace batch_ida {
 
@@ -63,12 +64,16 @@ bool DoIteration(
         // Non-blocking: try to read h(s) from the batch service.
         if (st == NeuralBatchService::HRequestStatus::Ready) {
             NVTX_MARK("DoIteration: request_h HIT");
-            //h = h_dummy;
+
         } else if (st == NeuralBatchService::HRequestStatus::Pending) {
             NVTX_MARK("DoIteration: request_h MISS -> enqueue+yield");
             return false;
         }
-        //h = heuristic(s);
+        //std::cout << "h_dummy = " << h << std::endl;
+        int a = heuristic(s);
+        if (a + 4 < h)
+            std::cout << "a = " << a << " h = "<< h<< std::endl;
+
 
     } else {
         // Fallback: normal synchronous heuristic evaluation.
