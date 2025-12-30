@@ -60,6 +60,7 @@ add_library(bootcamp_core
         src/neural_batch_service.cpp
         src/manhattan_15.cpp
         src/neural_delta_15_quantile.cpp
+        src/nn_over_corrections.cpp
 )
 if (BOOTCAMP_ENABLE_NVTX)
     target_compile_definitions(bootcamp_core PUBLIC ENABLE_NVTX)
@@ -216,3 +217,10 @@ if (WIN32)
     endif()
 
 endif()
+
+add_executable(build_nn_over_corrections
+        src/build_nn_over_corrections.cpp
+)
+target_link_libraries(build_nn_over_corrections PRIVATE ${TORCH_LIBRARIES})
+target_include_directories(build_nn_over_corrections PRIVATE ${TORCH_INCLUDE_DIRS})
+set_property(TARGET build_nn_over_corrections PROPERTY CXX_STANDARD 20)

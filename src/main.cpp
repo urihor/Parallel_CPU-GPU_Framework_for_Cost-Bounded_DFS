@@ -106,6 +106,9 @@ void start_nn_service() {
     opt.device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     // opt.use_half_on_cuda = true;
     opt.add_manhattan = true;
+    opt.corrections_1_7_path = "corr_1_7.bin";
+    opt.corrections_8_15_path = "corr_8_15.bin";
+
 
     auto nn = std::make_shared<neural15::NeuralDelta15Quantile>(opt);
 

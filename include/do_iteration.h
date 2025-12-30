@@ -69,9 +69,8 @@ bool DoIteration(
             NVTX_MARK("DoIteration: request_h MISS -> enqueue+yield");
             return false;
         }
-        //std::cout << "h_dummy = " << h << std::endl;
         int a = heuristic(s);
-        if (a + 4 < h)
+        if (a < h)
             std::cout << "a = " << a << " h = "<< h<< std::endl;
 
 
