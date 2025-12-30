@@ -138,7 +138,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         // In neural-batched mode, the synchronous heuristic is set to 0.
         // The actual h_M values are supplied asynchronously via the
         // NeuralBatchService (Algorithm 4 style).
-        //heuristic = &NeuralHeuristic;
+        heuristic = &Heuristic0;
         std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
     } else {
         std::cout << "[run_batch_ida_example] Using 7/8 PDB heuristic (no neural batching)\n";
@@ -205,12 +205,12 @@ int main() {
 
     try {
         // Build / verify the 7/8 PDBs in the current build directory
-        const fs::path out_dir = fs::current_path();
+        //const fs::path out_dir = fs::current_path();
         //ensure_78(out_dir);
         // Prepare the 100 Korf instances mapped to our goal
         std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
-        preload_pdbs_to_ram();
+        //preload_pdbs_to_ram();
         boards = MakeKorf100StatesForOurGoal();
         std::cout << std::endl << std::endl;
         std::cout << "=============================================" << std::endl;

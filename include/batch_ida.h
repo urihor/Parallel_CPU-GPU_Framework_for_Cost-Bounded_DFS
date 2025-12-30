@@ -79,7 +79,41 @@ namespace batch_ida {
         }
 
         // Initial IDA* threshold.
-        int bound = heuristic(start);
+        int bound = std::numeric_limits<int>::max();
+
+        if (batch_ida::neural_batch_enabled()
+            && NeuralBatchService::instance().is_running()
+            && std::is_same_v<State, puzzle15_state>) {
+            auto &svc = NeuralBatchService::instance();
+            int h0 = 0;
+
+            auto st = svc.request_h(start, h0);
+
+            if (st == NeuralBatchService::HRequestStatus::Ready) {
+                (void) svc.try_get_h(start, h0);
+                bound = h0;
+            } else if (st == NeuralBatchService::HRequestStatus::Pending) {
+                auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+
+                while (std::chrono::steady_clock::now() < deadline) {
+                    if (svc.try_get_h(start, h0)) {
+                        bound = h0;
+                        break;
+                    }
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                }
+
+                if (bound == std::numeric_limits<int>::max()) {
+                    bound = heuristic(start);
+                }
+            } else {
+                // NotRunning
+                bound = heuristic(start);
+            }
+        } else {
+            bound = heuristic(start);
+        }
+
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.
             return false;

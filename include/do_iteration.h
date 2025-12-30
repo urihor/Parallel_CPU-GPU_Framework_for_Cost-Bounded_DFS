@@ -59,7 +59,6 @@ bool DoIteration(
     int h = 0;
 
     if (batch_service && batch_service->is_running()) {
-        //int h_dummy = 0;
         const auto st = batch_service->request_h(s, h);
         // Non-blocking: try to read h(s) from the batch service.
         if (st == NeuralBatchService::HRequestStatus::Ready) {
@@ -69,10 +68,6 @@ bool DoIteration(
             NVTX_MARK("DoIteration: request_h MISS -> enqueue+yield");
             return false;
         }
-        int a = heuristic(s);
-        if (a < h)
-            std::cout << "a = " << a << " h = "<< h<< std::endl;
-
 
     } else {
         // Fallback: normal synchronous heuristic evaluation.
