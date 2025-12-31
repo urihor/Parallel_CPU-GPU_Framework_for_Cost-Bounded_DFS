@@ -8,6 +8,7 @@
 #include <thread>
 
 #include "work.h"
+#include "neural_delta_15.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
 #include "generate_work.h"   // assumed existing header for Algorithm 2
@@ -75,7 +76,14 @@ namespace batch_ida {
         }
 
         // Initial IDA* threshold.
-        int bound = heuristic(start);
+        int bound = 0;
+        if (batch_ida::neural_batch_enabled() &&
+        NeuralBatchService::instance().is_running()) {
+            bound = neural15::NeuralDelta15::instance().h_M_single(start);
+        }
+        else
+            bound = heuristic(start);
+        bound = heuristic(start);
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.
             return false;
@@ -91,14 +99,13 @@ namespace batch_ida {
 
         int best_len = INF;
         std::vector<Action> best_sol;
-        /*GenerateWork( env,
-                        start,
-                        d_init,
-                        empty_history,
-                        works,
-                        best_len,
-                        best_sol);*/
-
+        /*GenerateWork(env,
+                         start,
+                         d_init,
+                         empty_history,
+                         works,
+                         best_len,
+                         best_sol);*/
         auto key_fn = [](const State &s) {
             return s.pack(); // State must have pack()
         };
@@ -113,6 +120,7 @@ namespace batch_ida {
                           best_len,
                           best_sol);
 
+        //std::cout << "num of works: " << works.size() << std::endl;
         // If GenerateWork itself found a solution with cost <= bound,
         // we can stop immediately.
         if (best_len <= bound) {
@@ -134,6 +142,7 @@ namespace batch_ida {
             num_threads = (hw == 0u) ? 1u : static_cast<std::size_t>(hw);
         }
 
+
         // Do not run more threads than Works.
         if (num_threads > works.size()) {
             num_threads = works.size();
@@ -145,6 +154,13 @@ namespace batch_ida {
         // 2) IDA* outer loop: reuse the same works each time.
         // --------------------------------------------------
         while (true) {
+            // If neural batching is enabled, clear the cached entries between bounds.
+            // This drops all states from the previous IDA* iteration and lets the
+            // GPU cache only states relevant to the current threshold.
+            /*if (neural_batch_enabled()) {
+                NeuralBatchService::instance().reset_for_new_bound();
+            }*/
+
             // Reset all works' search state for the new IDA* iteration.
             for (auto &w: works) {
                 w.reset_for_new_iteration();
@@ -153,6 +169,7 @@ namespace batch_ida {
             // Run CB-DFS (Algorithm 3) on the generated works
             // with the current threshold 'bound'.
             int next_bound = INF;
+
             if (CB_DFS(env,
                        works,
                        work_num,
@@ -174,13 +191,14 @@ namespace batch_ida {
                             total_expanded += ww.expanded_nodes();
                         }
 
-                        std::cout << "Nodes expanded for this board: "
-                                << total_expanded << std::endl;
+                        //std::cout << "Nodes expanded for this board: "
+                        //       << total_expanded << std::endl;
 
                         return true;
                     }
                 }
             }
+
             // No solution within 'bound'. If next_bound stayed INF, it means
             // there were no nodes with f > bound, so increasing the bound
             // will not reveal new nodes → no solution exists.
@@ -189,6 +207,7 @@ namespace batch_ida {
             }
 
             // 3) Update the threshold and start a new IDA* iteration.
+            NVTX_MARK("New bound: reset batch cache");
             bound = next_bound;
         }
 

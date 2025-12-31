@@ -13,8 +13,8 @@ public:
      * current node.
      */
     struct Frame {
-        State state{}; // state at this depth
-        int g = 0; // depth from global start
+        State state{};                    // state at this depth
+        int g = 0;                      // depth from global start
 
         // Children of this node (actions). Filled once when the node
         // is expanded for the first time.
@@ -30,7 +30,7 @@ public:
 
     // These are used by GenerateWork / BatchIDA externally.
     State root{};   // root state of this subtree
-    std::vector<Action> init; // prefix of actions from global start to root
+    std::vector<Action> init;     // prefix of actions from global start to root
 
     Work() = default;
 
@@ -45,7 +45,7 @@ public:
         goal_found_ = false;
         solution_suffix_.clear();
         initialized_ = false;
-        expanded_nodes_ = 0;
+        expanded_nodes_  = 0;
     }
 
     /// A Work is considered "done" when its DFS path is empty

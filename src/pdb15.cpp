@@ -421,7 +421,8 @@ namespace pdb15 {
                               const std::string &out_path,
                               bool verbose) {
         const int k = static_cast<int>(pattern_tiles.size());
-        if (k <= 0 || k > 8) throw std::runtime_error("pattern size must be 1..8");
+        if (k <= 0 || k > 8)
+            throw std::runtime_error("pattern size must be 1..8");
 
         int max_deg = 0;
         // Precomputed neighbors table: for each cell, which cells are reachable
@@ -492,7 +493,8 @@ namespace pdb15 {
         constexpr std::uint64_t PROGRESS_EVERY = 50'000'000ULL;
         std::uint64_t next_report = PROGRESS_EVERY;
         std::uint64_t expanded = 0, relaxed = 0;
-        if (verbose) std::cout.setf(std::ios::unitbuf);
+        if (verbose)
+            std::cout.setf(std::ios::unitbuf);
 
         // 0–1 BFS main loop.
         // We repeatedly take a state from the front of the deque, relax all
@@ -508,7 +510,8 @@ namespace pdb15 {
             // Try moving the blank in each of the 4 directions.
             for (int di = 0; di < 4; ++di) {
                 int nb = neighbors[cur.blank][di];
-                if (nb < 0) continue; // invalid move from this cell
+                if (nb < 0)
+                    continue; // invalid move from this cell
 
                 Node nxt = cur;
                 int j = contains_tile_at(cur, nb);
@@ -573,7 +576,8 @@ namespace pdb15 {
         if (!dist.save_atomic(out_path, /*with_progress=*/true)) {
             throw std::runtime_error("failed to write PDB file: " + out_path);
         }
-        if (verbose) std::cout << "[build] done.\n";
+        if (verbose)
+            std::cout << "[build] done.\n";
 
         return dist;
     }
@@ -582,7 +586,7 @@ namespace pdb15 {
     // ---- Lookup & Additive --------------------------------------------------------
     //
     // This section provides:
-    //   * lookup(...)            – query a single PDB for a given pattern and state.
+    //   * lookup(...) – query a single PDB for a given pattern and state.
     //   * additive_heuristic(...) – sum of several disjoint PDBs (additive heuristic).
     //   * helper builders (build_744, build_78) for standard tile splits.
     //   * convenience functions that load PDBs from files and evaluate a heuristic.
