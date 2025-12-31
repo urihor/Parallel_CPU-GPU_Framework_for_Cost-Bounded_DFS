@@ -59,6 +59,7 @@ add_library(bootcamp_core
         src/neural_delta_15.cpp
         src/neural_batch_service.cpp
         src/manhattan_15.cpp
+        src/deepcubea15_heuristic.cpp
 )
 
 target_include_directories(bootcamp_core

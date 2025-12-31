@@ -111,17 +111,14 @@ private:
 
 namespace batch_ida {
 
-inline bool& neural_batch_enabled_flag() {
-    static bool enabled = false;
-    return enabled;
-}
+    inline std::atomic<bool> g_neural_batch_enabled{false};
 
-inline void set_neural_batch_enabled(const bool enabled) {
-    neural_batch_enabled_flag() = enabled;
-}
+    inline void set_neural_batch_enabled(bool enabled) {
+        g_neural_batch_enabled.store(enabled, std::memory_order_relaxed);
+    }
 
-inline bool neural_batch_enabled() {
-    return neural_batch_enabled_flag();
-}
+    inline bool neural_batch_enabled() {
+        return g_neural_batch_enabled.load(std::memory_order_relaxed);
+    }
 
 } // namespace batch_ida

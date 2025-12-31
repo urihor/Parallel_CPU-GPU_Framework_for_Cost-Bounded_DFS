@@ -77,12 +77,12 @@ namespace batch_ida {
 
         // Initial IDA* threshold.
         int bound = 0;
-        if (batch_ida::neural_batch_enabled() &&
+        /*if (batch_ida::neural_batch_enabled() &&
         NeuralBatchService::instance().is_running()) {
             bound = neural15::NeuralDelta15::instance().h_M_single(start);
         }
         else
-            bound = heuristic(start);
+            bound = heuristic(start);*/
         bound = heuristic(start);
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.

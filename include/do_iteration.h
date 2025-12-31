@@ -2,6 +2,7 @@
 #include "neural_batch_service.h"
 #include "work.h"
 #include "nvtx_helpers.h"
+#include <iostream>
 
 namespace batch_ida {
     // Type alias for a simple heuristic function pointer:
@@ -57,17 +58,19 @@ namespace batch_ida {
         int h = 0;
 
         if (batch_service && batch_service->is_running()) {
-            int h_dummy = 0;
-            const auto st = batch_service->request_h(s, h_dummy);
+            //int h_dummy;
+            const auto st = batch_service->request_h(s, h);
             // Non-blocking: try to read h(s) from the batch service.
             if (st == NeuralBatchService::HRequestStatus::Ready) {
                 NVTX_MARK("DoIteration: request_h HIT");
-                h = h_dummy;
+               /* std::cout << "h_dummy = " << h_dummy << std::endl;
+                h = heuristic(s);
+                std::cout << "h = " << h << std::endl;*/
+
             } else if (st == NeuralBatchService::HRequestStatus::Pending) {
                 NVTX_MARK("DoIteration: request_h MISS -> enqueue+yield");
                 return false;
             }
-            h = heuristic(s);
         } else {
             // Fallback: normal synchronous heuristic evaluation.
             h = heuristic(s);

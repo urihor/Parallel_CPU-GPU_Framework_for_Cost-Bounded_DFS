@@ -21,6 +21,8 @@
 #include "neural_delta_15.h"
 #include "manhattan_15.h"
 #include "nvtx_helpers.h"
+#include "deepcubea15_heuristic.h"
+
 
 
 namespace fs = std::filesystem;
@@ -121,6 +123,28 @@ static int Heuristic0(const StpEnv::State &s) {
     return 0;
 }
 
+static DeepCubeA15Heuristic* g_dc = nullptr;
+
+static int DeepCubeAHeuristic(const StpEnv::State& s) {
+    // חסימה עד שיש ערך (כי DeepCubeA15Heuristic::h הוא blocking)
+    return g_dc ? g_dc->h(s) : 0;
+}
+
+void start_deepcubea_service() {
+    DeepCubeA15Heuristic::Options opt;
+    opt.ts_path = "puzzle15_torchscript.pt";
+    opt.device  = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+    opt.scale   = 1.0f;
+    opt.base_override = 0.0f;
+
+    static DeepCubeA15Heuristic dc(opt);
+    g_dc = &dc;
+
+    dc.start_service(/*max_batch_size=*/800,
+                     /*max_wait=*/std::chrono::microseconds(200));
+}
+
+
 
 // Run Batch IDA* on a list of boards using the 7/8 PDB heuristic
 void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
@@ -141,7 +165,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         // In neural-batched mode, the synchronous heuristic is set to 0.
         // The actual h_M values are supplied asynchronously via the
         // NeuralBatchService (Algorithm 4 style).
-        //heuristic = &Heuristic0;
+        heuristic = &DeepCubeAHeuristic;;
         std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
     } else {
         std::cout << "[run_batch_ida_example] Using PDB heuristic (no neural batching)\n";
@@ -167,7 +191,8 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
                                         d_init,
                                         work_num,
                                         solution_cost,
-                                        solution);
+                                        solution,
+                                        1);
 
         if (found) {
             std::cout << "board number: " << board_num << std::endl;
@@ -212,7 +237,7 @@ int main() {
         const std::vector<puzzle15_state> boards = MakeKorf50StatesForOurGoal();
 
 
-        preload_pdbs_to_ram();
+        //preload_pdbs_to_ram();
 
         // --- GPU / CUDA sanity check ---
         std::cout << "torch::cuda::is_available() = "
@@ -225,9 +250,15 @@ int main() {
 
         std::cout << "Using device: " << (device.is_cuda() ? "CUDA" : "CPU") << std::endl;
 
-        neural15::NeuralDelta15::instance().initialize(".");
+        start_deepcubea_service();        //neural15::NeuralDelta15::instance().initialize(".");
 
-        neural15::init_default_batch_service();
+        //neural15::init_default_batch_service();
+        batch_ida::set_neural_batch_enabled(true);
+
+        std::cout
+        << "neural_batch_enabled=" << batch_ida::neural_batch_enabled()
+        << "  service_running=" << NeuralBatchService::instance().is_running()
+        << std::endl;
 
         run_batch_ida_example(boards);
 
