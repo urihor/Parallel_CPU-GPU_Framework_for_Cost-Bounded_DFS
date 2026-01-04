@@ -299,19 +299,28 @@ namespace neural15 {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
         }
 
-        torch::Tensor input = make_input_1_7(s, impl_->device);
+        // Build a batch of size 1 on CPU (pinned if CUDA) and perform a single
+        // host->device transfer, instead of writing element-by-element on the GPU.
+        std::vector<puzzle15_state> states;
+        states.reserve(1);
+        states.push_back(s);
+
+        torch::Tensor input = make_input_1_7_batch(states, impl_->device);
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(input);
-        NVTX_RANGE("NeuralDelta15::delta_1_7_batch");
 
-        torch::Tensor logits = impl_->model_1_7.forward(inputs).toTensor();
+        NVTX_RANGE("NeuralDelta15::delta_1_7_single");
+
         // logits shape: [1, num_classes]
+        torch::Tensor logits = impl_->model_1_7.forward(inputs).toTensor();
         auto pred = logits.argmax(1).item<int64_t>();
+
         if (pred < 0 || static_cast<size_t>(pred) >= impl_->delta_vals_1_7.size()) {
             throw std::runtime_error("delta_1_7: predicted class out of range");
         }
         return impl_->delta_vals_1_7[static_cast<size_t>(pred)];
     }
+
 
     // Same as delta_1_7, but for the 8–15 pattern.
     int NeuralDelta15::delta_8_15(const puzzle15_state &s) const {
@@ -319,17 +328,28 @@ namespace neural15 {
             throw std::runtime_error("NeuralDelta15::initialize() must be called before use.");
         }
 
-        torch::Tensor input = make_input_8_15(s, impl_->device);
+        // Build a batch of size 1 on CPU (pinned if CUDA) and perform a single
+        // host->device transfer, instead of writing element-by-element on the GPU.
+        std::vector<puzzle15_state> states;
+        states.reserve(1);
+        states.push_back(s);
+
+        torch::Tensor input = make_input_8_15_batch(states, impl_->device);
         std::vector<torch::jit::IValue> inputs;
         inputs.push_back(input);
 
+        NVTX_RANGE("NeuralDelta15::delta_8_15_single");
+
+        // logits shape: [1, num_classes]
         torch::Tensor logits = impl_->model_8_15.forward(inputs).toTensor();
         auto pred = logits.argmax(1).item<int64_t>();
+
         if (pred < 0 || static_cast<size_t>(pred) >= impl_->delta_vals_8_15.size()) {
             throw std::runtime_error("delta_8_15: predicted class out of range");
         }
         return impl_->delta_vals_8_15[static_cast<size_t>(pred)];
     }
+
 
     // Batched version of delta_1_7.
     //

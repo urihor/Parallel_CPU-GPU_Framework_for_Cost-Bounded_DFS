@@ -52,8 +52,7 @@ public:
     // Try to acquire the next available Work item.
     //
     // Returns:
-    //   true  - if a new Work was assigned. 'out_work' and 'out_index'
-    //           are filled with its address and index.
+    //   true  - if a new Work was assigned. 'out_work' is filled with its address.
     //   false - if there are no more Work items to assign
     //           (all works have already been handed out).
     //

@@ -40,9 +40,11 @@ static std::uint64_t expected_bytes_for_k(int k) {
 // Check that the file exists and has the exact expected size
 static bool file_ok(const fs::path &p, int k) {
     std::error_code ec;
-    if (!fs::exists(p, ec)) return false;
+    if (!fs::exists(p, ec))
+        return false;
     auto sz = fs::file_size(p, ec);
-    if (ec) return false;
+    if (ec)
+        return false;
     return sz == expected_bytes_for_k(k);
 }
 
@@ -73,6 +75,41 @@ static void ensure_78(const fs::path &out_dir) {
     pdb15::set_default_paths_78(p7.string(), p8.string());
 }
 
+// Build 7/4/4 PDBs if missing/corrupted; files will be written under out_dir
+static void ensure_744(const fs::path &out_dir) {
+    fs::create_directories(out_dir);
+    fs::path p7 = out_dir / "pdb_1_7.bin";
+    fs::path p4_first = out_dir / "pdb_8_11.bin";
+    fs::path p4_second = out_dir / "pdb_12_15.bin";
+
+    bool ok7 = file_ok(p7, 7);
+    bool ok4_first = file_ok(p4_first, 4);
+    bool ok4_second = file_ok(p4_second, 4);
+
+    std::cout << "[ensure_744] output dir: " << fs::absolute(out_dir) << "\n";
+    if (!ok7) {
+        std::cout << "[ensure_744] building 7-PDB -> " << fs::absolute(p7) << "\n";
+        pdb15::build_pdb_01bfs({1, 2, 3, 4, 5, 6, 7}, p7.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] 7-PDB OK -> " << fs::absolute(p7) << "\n";
+    }
+    if (!ok4_first) {
+        std::cout << "[ensure_744] building first 4-PDB -> " << fs::absolute(p4_first) << "\n";
+        pdb15::build_pdb_01bfs({8, 9, 10, 11}, p4_first.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] first 4-PDB OK -> " << fs::absolute(p4_first) << "\n";
+    }
+    if (!ok4_second) {
+        std::cout << "[ensure_744] building second 4-PDB -> " << fs::absolute(p4_second) << "\n";
+        pdb15::build_pdb_01bfs({12, 13, 14, 15}, p4_second.string(), /*verbose=*/true);
+    } else {
+        std::cout << "[ensure_744] second 4-PDB OK -> " << fs::absolute(p4_second) << "\n";
+    }
+
+    // Configure the default auto-lookup paths for 7/4/4 PDBs
+    pdb15::set_default_paths_744(p7.string(), p4_first.string(), p4_second.string());
+}
+
 // Simple adapter so BatchIDA can call our PDB-based heuristic
 static int PdbHeuristic78(const StpEnv::State &s) {
     return pdb15::heuristic_78_auto(s);
@@ -86,9 +123,6 @@ static int Heuristic0(const StpEnv::State &s) {
     return 0;
 }
 
-int NeuralHeuristic(const StpEnv::State &s) {
-    return neural15::NeuralDelta15::instance().h_M_single(s);
-}
 
 void start_nn_service() {
     neural15::NeuralDelta15QuantileOptions opt;
@@ -130,6 +164,7 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
     int work_num = 22; // number of logical stacks
     int solution_cost = 0;
     std::vector<StpEnv::Action> solution;
+
     // Decide which heuristic to pass to BatchIDA.
     int (*heuristic)(const StpEnv::State &) = &PdbHeuristic78;
 
@@ -141,16 +176,16 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         heuristic = &Heuristic0;
         std::cout << "[run_batch_ida_example] Using asynchronous neural h_M via GPU\n";
     } else {
-        std::cout << "[run_batch_ida_example] Using 7/8 PDB heuristic (no neural batching)\n";
+        std::cout << "[run_batch_ida_example] Using PDB heuristic (no neural batching)\n";
     }
-    int board_num = 1;
+
     auto start_time_a = std::chrono::high_resolution_clock::now();
 
     for (const auto &board: boards) {
         auto start_time_b = std::chrono::high_resolution_clock::now();
 
         // Make a mutable copy of the initial state for BatchIDA
-        auto start = board; // or: auto start = board;
+        auto start = board;
 
         solution.clear();
         if ((batch_ida::neural_batch_enabled() &&
@@ -178,14 +213,13 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
         } else {
             std::cout << "No solution found for board " << board_num << std::endl << std::endl;
         }
-        ++board_num;
+        board_num++;
     }
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration_s = end - start_time_a;
-    std::cout << "duration time of all boards: " << duration_s.count() << " seconds";
+    std::cout << "duration time of all boards: " << duration_s.count() << " seconds" << std::endl;
     std::cout << std::endl << std::endl;
-
 
 }
 
@@ -209,7 +243,7 @@ int main() {
         //const fs::path out_dir = fs::current_path();
         //ensure_78(out_dir);
         // Prepare the 100 Korf instances mapped to our goal
-        std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
+        const std::vector<puzzle15_state> boards = MakeKorf100StatesForOurGoal();
 
         //preload_pdbs_to_ram();
         boards = MakeKorf100StatesForOurGoal();

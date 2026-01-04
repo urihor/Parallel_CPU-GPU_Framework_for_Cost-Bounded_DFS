@@ -62,11 +62,6 @@ add_library(bootcamp_core
         src/neural_delta_15_quantile.cpp
         src/nn_over_corrections.cpp
 )
-if (BOOTCAMP_ENABLE_NVTX)
-    target_compile_definitions(bootcamp_core PUBLIC ENABLE_NVTX)
-    target_include_directories(bootcamp_core PUBLIC "D:/include")
-endif()
-
 
 target_include_directories(bootcamp_core
         PUBLIC
