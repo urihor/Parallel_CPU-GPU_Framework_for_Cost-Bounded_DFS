@@ -102,12 +102,12 @@ void start_nn_service() {
         "nn_pdb_8_15_delta_lcg_ens3_ts.pt",
       };
 
-    opt.quantile_q = 0.3;
+    opt.quantile_q = 0.25;
     opt.device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     // opt.use_half_on_cuda = true;
     opt.add_manhattan = true;
-    opt.corrections_1_7_path = "corr_1_7.bin";
-    opt.corrections_8_15_path = "corr_8_15.bin";
+    opt.corrections_1_7_path = "corr_1_7_0.25.bin";
+    opt.corrections_8_15_path = "corr_8_15_0.25.bin";
 
 
     auto nn = std::make_shared<neural15::NeuralDelta15Quantile>(opt);
@@ -164,7 +164,8 @@ void run_batch_ida_example(const std::vector<puzzle15_state> &boards) {
                                         d_init,
                                         work_num,
                                         solution_cost,
-                                        solution);
+                                        solution,
+                                        6);
 
         if (found) {
             std::cout << "board number: " << board_num << std::endl;
@@ -235,8 +236,8 @@ int main() {
 
         std::cout << "torch::cuda::is_available() = "
                 << (torch::cuda::is_available() ? "true" : "false") << std::endl;
-        torch::set_num_threads(1);
-        torch::set_num_interop_threads(1);
+        //torch::set_num_threads(1);
+        //torch::set_num_interop_threads(1);
 
         //NeuralDelta15::instance().initialize(".");
 
