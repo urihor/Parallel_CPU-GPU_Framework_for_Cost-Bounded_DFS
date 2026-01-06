@@ -115,6 +115,7 @@ NeuralBatchService::request_h(const State &s, int &h_out) {
             if (it->second.ready) {
                 h_out = it->second.h_value;
                 status = HRequestStatus::Ready;
+                //entries_.erase(it);
             } else {
                 status = HRequestStatus::Pending;
             }
