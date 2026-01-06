@@ -8,7 +8,7 @@
 #include <thread>
 
 #include "work.h"
-#include "neural_delta_15.h"
+#include "heuristic_router.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
 #include "generate_work.h"   // assumed existing header for Algorithm 2
@@ -76,40 +76,18 @@ namespace batch_ida {
         }
 
         // Initial IDA* threshold.
-        int bound = std::numeric_limits<int>::max();
+        const bool svc_on = NeuralBatchService::instance().is_running();
+        const bool use_nn_prune = batch_ida::neural_batch_enabled();
+        const bool use_nn_guide = batch_ida::guide_batch_enabled();
 
-        if (batch_ida::neural_batch_enabled()
-            && NeuralBatchService::instance().is_running()
-            && std::is_same_v<State, puzzle15_state>) {
-            auto &svc = NeuralBatchService::instance();
-            int h0 = 0;
-
-            auto st = svc.request_h(start, h0);
-
-            if (st == NeuralBatchService::HRequestStatus::Ready) {
-                (void) svc.try_get_h(start, h0);
-                bound = h0;
-            } else if (st == NeuralBatchService::HRequestStatus::Pending) {
-                auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
-
-                while (std::chrono::steady_clock::now() < deadline) {
-                    if (svc.try_get_h(start, h0)) {
-                        bound = h0;
-                        break;
-                    }
-                    std::this_thread::sleep_for(std::chrono::microseconds(50));
-                }
-
-                if (bound == std::numeric_limits<int>::max()) {
-                    bound = heuristic(start);
-                }
-            } else {
-                // NotRunning
-                bound = heuristic(start);
-            }
-        } else {
-            bound = heuristic(start);
+        if (svc_on && (use_nn_prune || use_nn_guide)) {
+            NeuralBatchService::instance().enqueue(start); // warm-up
         }
+
+        int bound = use_nn_prune && svc_on
+                        ? HeuristicRouter::instance().h_sync(start)
+                        : heuristic(start);
+
 
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.
@@ -234,7 +212,6 @@ namespace batch_ida {
             }
 
             // 3) Update the threshold and start a new IDA* iteration.
-            NVTX_MARK("New bound: reset batch cache");
             bound = next_bound;
         }
 

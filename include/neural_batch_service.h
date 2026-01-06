@@ -26,9 +26,9 @@ class NeuralBatchService {
 public:
     using State = puzzle15_state;
     using BatchComputeFn =
-        std::function<void(const std::vector<State>&, std::vector<int>&)>;
+    std::function<void(const std::vector<State> &, std::vector<int> &)>;
 
-    static NeuralBatchService& instance();
+    static NeuralBatchService &instance();
 
     // Start the worker thread.
     // Must be called once before using enqueue()/try_get_h().
@@ -43,7 +43,7 @@ public:
     void start(BatchComputeFn fn,
                std::size_t max_batch_size = 512,
                std::chrono::nanoseconds max_wait =
-                   std::chrono::milliseconds(1));
+                       std::chrono::milliseconds(1));
 
     // Stop the worker thread and flush all pending work.
     void shutdown();
@@ -55,29 +55,31 @@ public:
 
 
     // Non-copyable.
-    NeuralBatchService(const NeuralBatchService&) = delete;
-    NeuralBatchService& operator=(const NeuralBatchService&) = delete;
+    NeuralBatchService(const NeuralBatchService &) = delete;
+
+    NeuralBatchService &operator=(const NeuralBatchService &) = delete;
 
     // Schedule a state for batched evaluation (idempotent).
-    void enqueue(const State& s);
+    void enqueue(const State &s);
 
     // Try to obtain h(s). Returns true if the value is already available.
     // If 'false' is returned, the caller should normally give up the current
     // logical stack and try another Work.
-    bool try_get_h(const State& s, int& h_out);
+    bool try_get_h(const State &s, int &h_out);
 
     bool is_running() const noexcept { return running_; }
+
     enum class HRequestStatus { Ready, Pending, NotRunning };
 
     // Single call:
     // - Ready: h_out is valid
     // - Pending: request exists / was registered, try later
     // - NotRunning: batching disabled, caller should fallback
-    HRequestStatus request_h(const State& s, int& h_out);
-
+    HRequestStatus request_h(const State &s, int &h_out);
 
 private:
     NeuralBatchService() = default;
+
     ~NeuralBatchService();
 
     void worker_loop(BatchComputeFn fn);
@@ -85,7 +87,7 @@ private:
     struct Entry {
         State state;
         bool scheduled = false; // already picked for a batch
-        bool ready = false;     // h_value has been computed
+        bool ready = false; // h_value has been computed
         int h_value = 0;
     };
 
@@ -98,7 +100,7 @@ private:
 
 
     std::size_t max_batch_size_ = 800;
-    std::chrono::nanoseconds max_wait_{std::chrono::milliseconds (1)};
+    std::chrono::nanoseconds max_wait_{std::chrono::milliseconds(1)};
 
     std::thread worker_thread_;
     std::atomic<bool> running_{false};
@@ -106,22 +108,44 @@ private:
 };
 
 
-// Small helper to enable/disable the neural batching logic inside DoIteration.
+// Small helpers to enable/disable the neural batching logic inside DoIteration.
 // When disabled, DoIteration falls back to the normal (synchronous) heuristic.
+//
+// There are two independent feature flags:
+//   * neural_batch_enabled  – full neural pruning (neural h(s) used in the IDA* bound)
+//   * guide_batch_enabled   – GPU is used only for guiding / ordering, not for pruning
 
 namespace batch_ida {
+    // Global toggle: when true, DoIteration uses the asynchronous neural
+    // batching path (NeuralBatchService). When false, the code falls back
+    // to the original synchronous heuristic evaluation.
+    inline bool &neural_batch_enabled_flag() {
+        static bool enabled = false;
+        return enabled;
+    }
 
-inline bool& neural_batch_enabled_flag() {
-    static bool enabled = false;
-    return enabled;
-}
+    inline void set_neural_batch_enabled(bool enabled) {
+        neural_batch_enabled_flag() = enabled;
+    }
 
-inline void set_neural_batch_enabled(const bool enabled) {
-    neural_batch_enabled_flag() = enabled;
-}
+    inline bool neural_batch_enabled() {
+        return neural_batch_enabled_flag();
+    }
 
-inline bool neural_batch_enabled() {
-    return neural_batch_enabled_flag();
-}
+    // GPU is used only for guide/ordering (not for pruning).
+    // This can be used for experimentation where neural estimates affect
+    // the DFS order, but IDA* pruning still relies on a safe heuristic
+    // such as Manhattan or PDB.
+    inline bool &guide_batch_enabled_flag() {
+        static bool enabled = false;
+        return enabled;
+    }
 
+    inline void set_guide_batch_enabled(bool enabled) {
+        guide_batch_enabled_flag() = enabled;
+    }
+
+    inline bool guide_batch_enabled() {
+        return guide_batch_enabled_flag();
+    }
 } // namespace batch_ida

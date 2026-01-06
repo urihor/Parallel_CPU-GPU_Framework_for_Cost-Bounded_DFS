@@ -13,31 +13,34 @@ public:
      * current node.
      */
     struct Frame {
-        State state{};                    // state at this depth
-        int g = 0;                      // depth from global start
+        State state{}; // state at this depth
+        int g = 0; // depth from global start
 
         // Children of this node (actions). Filled once when the node
         // is expanded for the first time.
         std::vector<Action> actions;
         std::size_t next_child_index = 0; // which child to generate next
 
-        bool expanded = false;           // has this node been "expanded" already?
+        bool expanded = false; // has this node been "expanded" already?
 
         // For reconstructing the solution path:
-        Action action_from_parent{};     // action taken from parent to reach this node
-        bool has_parent = false;       // false for the root frame
+        Action action_from_parent{}; // action taken from parent to reach this node
+        bool has_parent = false; // false for the root frame
+        bool h_cached_ready = false; // was a NN value computed & cached?
+        int h_cached_value = 0; // cached heuristic value (from NN)
+        std::uint64_t h_cached_key = 0; // packed state key that this value corresponds to
     };
 
     // These are used by GenerateWork / BatchIDA externally.
-    State root{};   // root state of this subtree
-    std::vector<Action> init;     // prefix of actions from global start to root
+    State root{}; // root state of this subtree
+    std::vector<Action> init; // prefix of actions from global start to root
 
     Work() = default;
 
-    Work(const State& root_state, const std::vector<Action>& prefix)
+    Work(const State &root_state, const std::vector<Action> &prefix)
         : root(root_state)
-        , init(prefix)
-    {}
+          , init(prefix) {
+    }
 
     /// Reset all per-iteration search state (called at the start of each IDA* iteration).
     void reset_for_new_iteration() noexcept {
@@ -45,7 +48,7 @@ public:
         goal_found_ = false;
         solution_suffix_.clear();
         initialized_ = false;
-        expanded_nodes_  = 0;
+        expanded_nodes_ = 0;
     }
 
     /// A Work is considered "done" when its DFS path is empty
@@ -70,7 +73,7 @@ public:
 
     /// Reconstruct the full action sequence from global start to this Work's goal.
     template<class ActionContainer>
-    void reconstruct_full_path(ActionContainer& out) const {
+    void reconstruct_full_path(ActionContainer &out) const {
         assert(goal_found_);
         out.clear();
 
@@ -114,12 +117,12 @@ public:
     }
 
     /// Access the current (deepest) frame on the DFS path.
-    Frame& current_frame() {
+    Frame &current_frame() {
         assert(initialized_ && !path_.empty());
         return path_.back();
     }
 
-    const Frame& current_frame() const {
+    const Frame &current_frame() const {
         assert(initialized_ && !path_.empty());
         return path_.back();
     }
@@ -131,7 +134,7 @@ public:
     }
 
     /// Push a child frame corresponding to successor state reached via action 'a'.
-    void push_child(const State& child_state, int child_g, const Action& a) {
+    void push_child(const State &child_state, int child_g, const Action &a) {
         Frame child;
         child.state = child_state;
         child.g = child_g;
@@ -150,7 +153,7 @@ public:
 
         solution_suffix_.clear();
         // Collect actions along the path, skipping the root (has_parent == false).
-        for (const Frame& f : path_) {
+        for (const Frame &f: path_) {
             if (f.has_parent) {
                 solution_suffix_.push_back(f.action_from_parent);
             }
