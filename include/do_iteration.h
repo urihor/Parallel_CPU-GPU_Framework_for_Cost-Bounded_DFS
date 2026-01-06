@@ -46,9 +46,9 @@ namespace batch_ida {
         const int bound,
         Heuristic heuristic, // synchronous heuristic used for pruning (e.g., PDB)
         int &next_bound
-) {
-    using State = typename Env::State;
-    using Action = typename Env::Action;
+    ) {
+        using State = typename Env::State;
+        using Action = typename Env::Action;
 
         // If this Work is already finished or goal has been found, nothing to do.
         if (work.is_done() || work.goal_found()) return work.goal_found();
@@ -162,10 +162,6 @@ namespace batch_ida {
                 }
             }
         }
-    }
-
-    // Expansion step.
-    if (frame.next_child_index < frame.actions.size()) {
 
         // -----------------------------
         // 3) One-child DFS step
@@ -188,12 +184,4 @@ namespace batch_ida {
         // No solution found yet on this call.
         return false;
     }
-    else {
-        // No more children => backtrack.
-        work.pop_frame();
-    }
-
-    return false;
-}
-
 } // namespace batch_ida
