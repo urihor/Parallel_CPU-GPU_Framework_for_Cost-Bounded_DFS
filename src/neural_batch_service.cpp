@@ -106,7 +106,6 @@ NeuralBatchService::request_h(const State &s, int &h_out) {
         if (inserted) {
             it->second.state = s;
 
-            // Since you already did (1) pending queue:
             pending_.push_back(key);
 
             notify_worker = true;
