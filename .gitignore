@@ -14,7 +14,7 @@ Makefile
 .ninja_deps
 .ninja_log
 
-# Visual Studio generators (ан йецшйн гшк CMake, афщш мдътмн одн)
+# Visual Studio generators (пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ CMake, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ)
 *.sln
 *.vcxproj*
 .vs/
@@ -38,3 +38,4 @@ Thumbs.db
 *.pdb
 *.ilk
 *.d
+/cmake-build-release/
