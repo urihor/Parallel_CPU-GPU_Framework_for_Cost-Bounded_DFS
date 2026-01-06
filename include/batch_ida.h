@@ -8,7 +8,7 @@
 #include <thread>
 
 #include "work.h"
-#include "neural_delta_15.h"
+#include "heuristic_router.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
 #include "generate_work.h"   // assumed existing header for Algorithm 2
@@ -76,14 +76,19 @@ namespace batch_ida {
         }
 
         // Initial IDA* threshold.
-        int bound = 0;
-        /*if (batch_ida::neural_batch_enabled() &&
-        NeuralBatchService::instance().is_running()) {
-            bound = neural15::NeuralDelta15::instance().h_M_single(start);
+        const bool svc_on = NeuralBatchService::instance().is_running();
+        const bool use_nn_prune = batch_ida::neural_batch_enabled();
+        const bool use_nn_guide = batch_ida::guide_batch_enabled();
+
+        if (svc_on && (use_nn_prune || use_nn_guide)) {
+            NeuralBatchService::instance().enqueue(start); // warm-up
         }
-        else
-            bound = heuristic(start);*/
-        bound = heuristic(start);
+
+        int bound = use_nn_prune && svc_on
+                        ? HeuristicRouter::instance().h_sync(start)
+                        : heuristic(start);
+
+
         if (bound >= INF) {
             // Heuristic says "infinite" / unreachable.
             return false;
@@ -207,7 +212,6 @@ namespace batch_ida {
             }
 
             // 3) Update the threshold and start a new IDA* iteration.
-            NVTX_MARK("New bound: reset batch cache");
             bound = next_bound;
         }
 
