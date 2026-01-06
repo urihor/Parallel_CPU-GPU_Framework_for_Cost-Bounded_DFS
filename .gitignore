@@ -39,4 +39,5 @@ Thumbs.db
 *.ilk
 *.d
 /cmake-build-release/
-/cmake-build-release-wsl/bin/
+cmake-build-release-wsl/bin/
+cmake-build-release-wsl/
