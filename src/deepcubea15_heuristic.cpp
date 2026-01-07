@@ -56,55 +56,6 @@ void DeepCubeA15Heuristic::start_service(std::size_t max_batch_size,
     NeuralBatchService::instance().start(fn, max_batch_size, max_wait);
 }
 
-void DeepCubeA15Heuristic::shutdown_service() {
-    NeuralBatchService::instance().shutdown();
-}
-
-void DeepCubeA15Heuristic::reset_for_new_bound() {
-    NeuralBatchService::instance().reset_for_new_bound();
-}
-
-void DeepCubeA15Heuristic::enqueue(const puzzle15_state& s) {
-    NeuralBatchService::instance().enqueue(s);
-}
-
-bool DeepCubeA15Heuristic::try_get_h(const puzzle15_state& s, int& h_out) {
-    return NeuralBatchService::instance().try_get_h(s, h_out);
-}
-
-int DeepCubeA15Heuristic::h(const puzzle15_state& s) {
-    auto& svc = NeuralBatchService::instance();
-
-    int h_out = 0;
-    auto st = svc.request_h(s, h_out);
-
-    if (st == NeuralBatchService::HRequestStatus::NotRunning) {
-        // Synchronous fallback (no batching)
-        const float y = forward_score_single(s);
-        return score_to_h(y);
-    }
-
-    if (st == NeuralBatchService::HRequestStatus::Ready) {
-        // IMPORTANT: consume to erase entry (otherwise entries_ grows)
-        (void)svc.try_get_h(s, h_out);
-        return h_out;
-    }
-
-    // Pending -> block until ready
-    for (int i = 0; i < spin_yields_; ++i) {
-        if (svc.try_get_h(s, h_out)) {
-            return h_out;
-        }
-        std::this_thread::yield();
-    }
-
-    while (true) {
-        if (svc.try_get_h(s, h_out)) {
-            return h_out;
-        }
-        std::this_thread::sleep_for(sleep_after_);
-    }
-}
 
 int DeepCubeA15Heuristic::score_to_h(float y) const {
     // h = max(0, floor(scale * (y - base)))

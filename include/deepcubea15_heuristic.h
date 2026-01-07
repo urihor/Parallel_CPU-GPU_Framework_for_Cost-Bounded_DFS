@@ -42,18 +42,6 @@ public:
     void start_service(std::size_t max_batch_size,
                        std::chrono::nanoseconds max_wait);
 
-    void shutdown_service();
-
-    // Clear service cache between IDA* iterations if you want.
-    void reset_for_new_bound();
-
-    // Main heuristic to use inside IDA* (BLOCKING until value ready if service is running).
-    int h(const puzzle15_state& s);
-
-    // Non-blocking helpers (optional)
-    void enqueue(const puzzle15_state& s);
-    bool try_get_h(const puzzle15_state& s, int& h_out);
-
 private:
     // Called by NeuralBatchService worker thread
     void compute_batch_fn(const std::vector<NeuralBatchService::State>& batch,

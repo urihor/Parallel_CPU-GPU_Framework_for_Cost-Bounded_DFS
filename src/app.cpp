@@ -16,6 +16,9 @@
 #include <cstdint>
 #include <stdexcept>
 #include <system_error>
+#include <sstream>
+#include <cctype>
+#include <cstdlib>
 
 #include <torch/torch.h>
 
@@ -26,6 +29,8 @@
 #include "korf_examples.h"
 #include "nvtx_helpers.h"
 #include "solution_printer.h"
+#include "manhattan_15.h"
+
 
 #include "neural_batch_service.h"
 #include "neural_delta_15_quantile.h"
@@ -109,6 +114,11 @@ static int PdbHeuristic78(const StpEnv::State &s) {
     return pdb15::heuristic_78_auto(s);
 }
 
+// Manhattan fallback heuristic (always available, no files required).
+static int ManhattanHeuristic(const StpEnv::State &s) {
+    return manhattan_15(s);
+}
+
 // Trivial zero heuristic (for experimentation / debugging only).
 static int Heuristic0(const StpEnv::State &) { return 0; }
 
@@ -133,7 +143,7 @@ static void start_nn_service_quantile(const app::AppConfig &cfg) {
     opt.device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
     opt.add_manhattan = cfg.add_manhattan;
 
-    // Optional overestimation correction tables (can be empty).
+    // overestimation correction tables.
     opt.corrections_1_7_path = cfg.corr1_7;
     opt.corrections_8_15_path = cfg.corr8_15;
 
@@ -179,10 +189,20 @@ static void start_deepcubea_service(const app::AppConfig &cfg) {
 //   * a single board provided via --board=... ,
 // depending on what was passed to run_batch_ida().
 //
-// The heuristic pointer given to BatchIDA is always the PDB heuristic.
-// In NN modes, DoIteration will internally switch to the NN value for
-// pruning/guiding (and avoid calling this pointer on NN-pruned states).
+// The synchronous heuristic pointer passed to BatchIDA is chosen as follows:
+//   * In PDB modes (PdbOnly, PdbGuideNN): we pass the 7/8 PDB heuristic.
+//   * In GPU modes (NNPrune, DeepCubeA): we prefer a "file-free" fallback
+//     heuristic (Manhattan) unless valid PDB files already exist on disk,
+//     in which case we can use the PDB heuristic as the synchronous baseline.
 //
+// In NN modes, DoIteration may internally use the NeuralBatchService output
+// for pruning and/or guiding (depending on flags), and may avoid calling the
+// synchronous heuristic on NN-pruned states. Still, BatchIDA/DoIteration can
+// require a synchronous heuristic for bookkeeping / fallback paths, so we must
+// ensure the passed heuristic is always safe to call even when PDB files
+// were not built/loaded.
+//
+
 static void run_batch_ida(const app::AppConfig &cfg,
                           const std::vector<puzzle15_state> &boards) {
     StpEnv env;
@@ -190,11 +210,33 @@ static void run_batch_ida(const app::AppConfig &cfg,
     int solution_cost = 0;
     std::vector<StpEnv::Action> solution;
 
-    // IMPORTANT:
-    // We always pass PDB heuristic pointer here.
-    // In NN prune mode, DoIteration should use h from NeuralBatchService
-    // (and not call this). Also BatchIDA initial bound becomes sane.
-    int (*heuristic)(const StpEnv::State &) = &PdbHeuristic78;
+    // Choose the synchronous heuristic to pass into BatchIDA.
+    //
+    // - In pure PDB modes we always use the 7/8 PDB heuristic.
+    // - In GPU modes (NN / DeepCubeA) we prefer Manhattan unless PDB files already exist,
+    //   because GPU modes may run without building/ensuring PDB files first.
+    int (*heuristic)(const StpEnv::State &) = &ManhattanHeuristic;
+
+    const bool pdb_mode =
+            (cfg.mode == app::RunMode::PdbOnly || cfg.mode == app::RunMode::PdbGuideNN);
+
+    if (pdb_mode) {
+        // PDB modes: run() should have already called ensure_78() and set_default_paths_78().
+        heuristic = &PdbHeuristic78;
+    } else {
+        // GPU modes: use PDB only if the expected files already exist and look valid.
+        // This avoids crashing / throwing when PDB files are missing.
+        const auto p7 = cfg.pdb_dir / "pdb_1_7.bin";
+        const auto p8 = cfg.pdb_dir / "pdb_8_15.bin";
+        const bool have_pdb = file_ok(p7, 7) && file_ok(p8, 8);
+
+        if (have_pdb) {
+            pdb15::set_default_paths_78(p7.string(), p8.string());
+            heuristic = &PdbHeuristic78;
+        } else {
+            heuristic = &ManhattanHeuristic;
+        }
+    }
 
     std::cout << "[BatchIDA] d_init=" << cfg.d_init
             << " work_num=" << cfg.work_num
@@ -216,10 +258,7 @@ static void run_batch_ida(const app::AppConfig &cfg,
         auto start = board;
         solution.clear();
 
-        // Between boards, we reset the batching service state. This is good
-        // hygiene, avoids stale cached entries, and keeps memory usage bounded.
         if (svc_running) {
-            // good hygiene between solves (also helps memory)
             NeuralBatchService::instance().reset_for_new_bound();
         }
 
@@ -240,7 +279,6 @@ static void run_batch_ida(const app::AppConfig &cfg,
             std::cout << "board " << board_num
                     << " | cost=" << solution_cost
                     << " | time=" << dt.count() << " sec\n";
-            //PrintSolution(env,start,solution);
         } else {
             std::cout << "board " << board_num
                     << " | NO SOLUTION"
@@ -253,6 +291,7 @@ static void run_batch_ida(const app::AppConfig &cfg,
     std::chrono::duration<double> dt_all = t_all1 - t_all0;
     std::cout << "[BatchIDA] total time: " << dt_all.count() << " sec\n";
 }
+
 
 // ------------------------------------------------------------
 // Args parsing (minimal, robust enough)
@@ -404,6 +443,26 @@ namespace app {
     //
     int run(const AppConfig &cfg) {
         RunMode mode = cfg.mode; // Effective mode (may change on fallback)
+        auto require_file = [](const std::string &p, const char *what) {
+            if (p.empty() || !std::filesystem::exists(p)) {
+                throw std::runtime_error(std::string("Missing required file for ") + what + ": " + p);
+            }
+        };
+
+        if (cfg.mode == RunMode::NNPrune || cfg.mode == RunMode::PdbGuideNN) {
+            require_file(cfg.w1_7,"NN model (tiles 1-7)");
+            require_file(cfg.w8_15_0, "NN model (tiles 8-15_0)");
+            require_file(cfg.w8_15_1, "NN model (tiles 8-15_1)");
+            require_file(cfg.w8_15_2, "NN model (tiles 8-15_2)");
+            require_file(cfg.w8_15_3, "NN model (tiles 8-15_3)");
+            require_file(cfg.corr1_7, "corr1_7");
+            require_file(cfg.corr8_15, "corr8_15");
+        } else if (mode == RunMode::DeepCubeA) {
+            // DeepCubeA requires CUDA (you already handle fallback if CUDA is not available).
+            // Also require the TorchScript model file to exist.
+            require_file(cfg.deepcubea_ts, "DeepCubeA TorchScript model ");
+        }
+
         const bool cuda_ok = torch::cuda::is_available();
 
         // If a GPU-based mode was requested but CUDA is not available,
