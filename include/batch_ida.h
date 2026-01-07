@@ -8,7 +8,6 @@
 #include <thread>
 
 #include "work.h"
-#include "heuristic_router.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
 #include "generate_work.h"   // assumed existing header for Algorithm 2
@@ -75,18 +74,61 @@ namespace batch_ida {
             return true;
         }
 
-        // Initial IDA* threshold.
+        // --------------------------------------------------
+        // Initial IDA* threshold ("bound") for the outer IDA* loop
+        // --------------------------------------------------
+
+        // Service is actually running (worker thread alive)
         const bool svc_on = NeuralBatchService::instance().is_running();
+
+        // Mode flags:
+        //  - NN prune: the neural value participates in f=g+h pruning
+        //  - NN guide: neural is only used for ordering / gating (prune stays PDB)
         const bool use_nn_prune = batch_ida::neural_batch_enabled();
         const bool use_nn_guide = batch_ida::guide_batch_enabled();
 
+        // Optional warm-up: make sure the start state is enqueued early so the worker
+        // can begin computing while we do other setup work.
         if (svc_on && (use_nn_prune || use_nn_guide)) {
-            NeuralBatchService::instance().enqueue(start); // warm-up
+            NeuralBatchService::instance().enqueue(start);
         }
 
-        int bound = use_nn_prune && svc_on
-                        ? HeuristicRouter::instance().h_sync(start)
-                        : heuristic(start);
+        int bound = 0;
+
+        if (use_nn_prune && svc_on) {
+            // In NN-prune mode we want the initial bound to match the neural heuristic,
+            // otherwise we may waste an extra IDA* iteration (bound too small).
+            auto &svc = NeuralBatchService::instance();
+
+            int h0 = 0;
+            auto st = svc.request_h(start, h0);
+
+            if (st == NeuralBatchService::HRequestStatus::NotRunning) {
+                // Safety fallback: service was turned off unexpectedly
+                bound = heuristic(start);
+            } else {
+                // Wait for the neural value using polling only (NO try_get_h, NO erase).
+                // First do a short spin-yield phase to avoid sleeping if the batch is
+                // about to complete.
+                for (int i = 0; i < 256 && st == NeuralBatchService::HRequestStatus::Pending; ++i) {
+                    std::this_thread::yield();
+                    st = svc.request_h(start, h0);
+                }
+
+                // If still pending, back off with small sleeps to avoid burning CPU.
+                while (st == NeuralBatchService::HRequestStatus::Pending) {
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
+                    st = svc.request_h(start, h0);
+                }
+
+                // Now it must be Ready and h0 is valid.
+                bound = h0;
+            }
+        } else {
+            // GUIDE mode (or pure PDB mode): pruning is still PDB-based,
+            // so the bound MUST come from the PDB heuristic (not the NN).
+            bound = heuristic(start);
+        }
 
 
         if (bound >= INF) {

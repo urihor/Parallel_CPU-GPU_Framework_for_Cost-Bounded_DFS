@@ -83,7 +83,6 @@ add_library(bootcamp_core
         src/manhattan_15.cpp
         src/deepcubea15_heuristic.cpp
         src/app.cpp
-        src/heuristic_router.cpp
         src/nn_over_corrections.cpp
 )
 
