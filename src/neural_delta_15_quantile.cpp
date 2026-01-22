@@ -33,7 +33,8 @@ static int goal_index(int tile) {
 //        - add |dr| + |dc| to the sum.
 static int manhattan_full(const puzzle15_state& s) {
     std::array<int, 16> pos{};
-    for (int i = 0; i < 16; ++i) pos[s.tiles[i]] = i;
+    for (int i = 0; i < 16; ++i)
+        pos[s.tiles[i]] = i;
 
     int sum = 0;
     for (int t = 1; t <= 15; ++t) {
@@ -62,16 +63,18 @@ static torch::Tensor quantile_index_from_logits(const torch::Tensor& logits, dou
 
 // Compute the number of k-permutations of n elements: P(n, k) = n * (n-1) * ... * (n-k+1).
 static std::uint64_t perm_count(int n, int k) {
-    if (k <= 0) return 1;
+    if (k <= 0)
+        return 1;
     std::uint64_t r = 1;
-    for (int i = 0; i < k; ++i) r *= static_cast<std::uint64_t>(n - i);
+    for (int i = 0; i < k; ++i)
+        r *= static_cast<std::uint64_t>(n - i);
     return r;
 }
 
 // Precompute factorial-like weights for ranking partial permutations of length m
 // drawn from a universe of size 16. These are used by rank_partial_perm().
 //
-// For each position i (0..m-1), we store
+// For each position i (0...m-1), we store
 //   w[i] = P(16 - i - 1, m - i - 1)
 // which is the "stride" contributed by how many unused smaller values appear at position i.
 static std::array<std::uint64_t, 9> make_weights(int m) {
@@ -167,9 +170,12 @@ struct NeuralDelta15Quantile::Impl {
     //   - Load TorchScript ensembles for both patterns.
     //   - Run a small warmup pass to initialize the models and CUDA context.
     explicit Impl(NeuralDelta15QuantileOptions o) : opt(std::move(o)) {
-        if (opt.weights_1_7.empty()) throw std::runtime_error("weights_1_7 is empty");
-        if (opt.weights_8_15.empty()) throw std::runtime_error("weights_8_15 is empty");
-        if (!(opt.quantile_q > 0.0 && opt.quantile_q <= 1.0)) throw std::runtime_error("quantile_q must be in (0,1]");
+        if (opt.weights_1_7.empty())
+            throw std::runtime_error("weights_1_7 is empty");
+        if (opt.weights_8_15.empty())
+            throw std::runtime_error("weights_8_15 is empty");
+        if (!(opt.quantile_q > 0.0 && opt.quantile_q <= 1.0))
+            throw std::runtime_error("quantile_q must be in (0,1]");
 
         w8 = make_weights(8);
         w9 = make_weights(9);
@@ -203,7 +209,8 @@ struct NeuralDelta15Quantile::Impl {
             (void)nets_1_7[0].forward({x1}).toTensor();
             (void)nets_8_15[0].forward({x2}).toTensor();
         }
-        if (opt.device.is_cuda()) torch::cuda::synchronize();
+        if (opt.device.is_cuda())
+            torch::cuda::synchronize();
     }
 
     // Compute heuristics for a batch of states.
@@ -217,7 +224,8 @@ struct NeuralDelta15Quantile::Impl {
     //   6. Store the final heuristic value into hs[i].
     void compute_batch(const std::vector<puzzle15_state>& batch, std::vector<int>& hs) {
         hs.resize(batch.size());
-        if (batch.empty()) return;
+        if (batch.empty())
+            return;
 
         const int64_t B = static_cast<int64_t>(batch.size());
 
@@ -229,13 +237,16 @@ struct NeuralDelta15Quantile::Impl {
         auto a2 = x2_cpu.accessor<int64_t, 2>();
 
         std::vector<std::uint32_t> r1, r2;
-        if (have_corr_1_7) r1.resize(batch.size());
-        if (have_corr_8_15) r2.resize(batch.size());
+        if (have_corr_1_7)
+            r1.resize(batch.size());
+        if (have_corr_8_15)
+            r2.resize(batch.size());
 
         for (int64_t i = 0; i < B; ++i) {
             std::array<int, 16> pos{};
             const auto& tiles = batch[i].tiles;
-            for (int j = 0; j < 16; ++j) pos[tiles[j]] = j;
+            for (int j = 0; j < 16; ++j)
+                pos[tiles[j]] = j;
 
             // 1..7 pattern: [pos(1)..pos(7), pos(0)]
             int seq8[8];
@@ -260,8 +271,10 @@ struct NeuralDelta15Quantile::Impl {
             seq9[8] = pos[0];
 
             // Precompute rank keys for over-correction lookups.
-            if (have_corr_1_7) r1[static_cast<std::size_t>(i)] = rank_partial_perm(seq8, 8, w8);
-            if (have_corr_8_15) r2[static_cast<std::size_t>(i)] = rank_partial_perm(seq9, 9, w9);
+            if (have_corr_1_7)
+                r1[static_cast<std::size_t>(i)] = rank_partial_perm(seq8, 8, w8);
+            if (have_corr_8_15)
+                r2[static_cast<std::size_t>(i)] = rank_partial_perm(seq9, 9, w9);
         }
 
         auto x1 = x1_cpu.to(opt.device);
@@ -278,8 +291,13 @@ struct NeuralDelta15Quantile::Impl {
             for (auto& m : nets_1_7) {
                 auto logits = m.forward({x1}).toTensor();
                 auto d = quantile_index_from_logits(logits, opt.quantile_q);
-                if (!init1) { best_d1 = d; init1 = true; }
-                else { best_d1 = torch::min(best_d1, d); }
+                if (!init1) {
+                    best_d1 = d;
+                    init1 = true;
+                }
+                else {
+                    best_d1 = torch::min(best_d1, d);
+                }
             }
 
             // 8..15 ensemble: same idea.
@@ -287,8 +305,13 @@ struct NeuralDelta15Quantile::Impl {
             for (auto& m : nets_8_15) {
                 auto logits = m.forward({x2}).toTensor();
                 auto d = quantile_index_from_logits(logits, opt.quantile_q);
-                if (!init2) { best_d2 = d; init2 = true; }
-                else { best_d2 = torch::min(best_d2, d); }
+                if (!init2) {
+                    best_d2 = d;
+                    init2 = true;
+                }
+                else {
+                    best_d2 = torch::min(best_d2, d);
+                }
             }
         }
 
@@ -309,12 +332,14 @@ struct NeuralDelta15Quantile::Impl {
             if (have_corr_1_7) {
                 const int over = static_cast<int>(corr_1_7.get(r1[i]));
                 d1 -= over;
-                if (d1 < 0) d1 = 0;
+                if (d1 < 0)
+                    d1 = 0;
             }
             if (have_corr_8_15) {
                 const int over = static_cast<int>(corr_8_15.get(r2[i]));
                 d2 -= over;
-                if (d2 < 0) d2 = 0;
+                if (d2 < 0)
+                    d2 = 0;
             }
 
             hs[i] = base + d1 + d2;

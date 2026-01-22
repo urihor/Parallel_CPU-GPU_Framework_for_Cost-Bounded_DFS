@@ -14,10 +14,10 @@ namespace neural15 {
      * Configuration options for NeuralDelta15Quantile:
      *
      *  - Two ensembles of TorchScript models:
-     *      * weights_1_7:  networks that predict delta for tiles 1–7
+     *      * weights_1_7: networks that predict delta for tiles 1–7
      *      * weights_8_15: networks that predict delta for tiles 8–15
      *
-     *  - The networks output a distribution over delta-classes (0..K).
+     *  - The networks output a distribution over delta-classes (0...K).
      *    We pick a quantile (e.g. q=0.3 or q=0.5), then optionally apply
      *    offline “over-correction” tables to guarantee admissibility.
      *
@@ -27,7 +27,7 @@ namespace neural15 {
      */
     struct NeuralDelta15QuantileOptions {
         // File paths to TorchScript models for the 1–7 subset.
-        // In practice we usually use a single model here.
+        // In practice, we usually use a single model here.
         std::vector<std::string> weights_1_7; // usually single
 
         // File paths to TorchScript models for the 8–15 subset.

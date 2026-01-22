@@ -12,7 +12,8 @@ namespace {
     template<typename T>
     static void read_exact(std::ifstream &in, T &out) {
         in.read(reinterpret_cast<char *>(&out), static_cast<std::streamsize>(sizeof(T)));
-        if (!in) throw std::runtime_error("Failed reading from file (unexpected EOF)");
+        if (!in)
+            throw std::runtime_error("Failed reading from file (unexpected EOF)");
     }
 
     /// Return total size (in bytes) of the file associated with this stream,
@@ -62,7 +63,8 @@ void NnOverCorrections::load(const std::string &path) {
     clear();
 
     std::ifstream in(path, std::ios::binary);
-    if (!in) throw std::runtime_error("NnOverCorrections: failed to open: " + path);
+    if (!in)
+        throw std::runtime_error("NnOverCorrections: failed to open: " + path);
 
     // Read header from disk
     Header h{};
@@ -122,7 +124,8 @@ void NnOverCorrections::load(const std::string &path) {
         const std::size_t bytes = take * RECORD_BYTES;
 
         in.read(reinterpret_cast<char *>(buf.data()), static_cast<std::streamsize>(bytes));
-        if (!in) throw std::runtime_error("NnOverCorrections: failed reading records from: " + path);
+        if (!in)
+            throw std::runtime_error("NnOverCorrections: failed reading records from: " + path);
 
         const unsigned char *p = buf.data();
         for (std::size_t i = 0; i < take; ++i) {
@@ -202,16 +205,19 @@ void NnOverCorrections::build_bucket_offsets_() {
 ///   4. Binary search (lower_bound) for `rank` in that slice.
 ///   5. If found, return overs_[index], else 0.
 std::uint8_t NnOverCorrections::get(std::uint32_t rank) const {
-    if (!offsets_ready_ || ranks_.empty()) return 0;
+    if (!offsets_ready_ || ranks_.empty())
+        return 0;
 
     const std::uint32_t p = (rank >> 16);
     const std::uint32_t begin = offsets_[p];
     const std::uint32_t end = offsets_[p + 1];
-    if (begin >= end) return 0; // no entries in this bucket
+    if (begin >= end)
+        return 0; // no entries in this bucket
 
     const std::uint32_t *base = ranks_.data();
     const std::uint32_t *it = std::lower_bound(base + begin, base + end, rank);
-    if (it == base + end || *it != rank) return 0;
+    if (it == base + end || *it != rank)
+        return 0;
 
     const std::size_t idx = static_cast<std::size_t>(it - base);
     return overs_[idx];

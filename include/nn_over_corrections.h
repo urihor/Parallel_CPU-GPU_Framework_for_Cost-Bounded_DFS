@@ -69,7 +69,9 @@ public:
     void clear();
 
     /// True if no records are loaded.
-    bool empty() const { return ranks_.empty(); }
+    bool empty() const {
+        return ranks_.empty();
+    }
 
     /**
      * Lookup the correction value for a given abstract rank.
@@ -85,16 +87,24 @@ public:
     std::uint8_t get(std::uint32_t rank) const;
 
     // Number of raw records reported in the file header (before merging).
-    std::uint64_t record_count() const { return record_count_; }
+    std::uint64_t record_count() const {
+        return record_count_;
+    }
 
     // Pattern identifier from header: 17 for tiles 1–7, 815 for tiles 8–15.
-    std::uint32_t pattern_id() const { return pattern_id_; }
+    std::uint32_t pattern_id() const {
+        return pattern_id_;
+    }
 
     // m from header: 8 or 9, the length of the partial permutation.
-    std::uint32_t m() const { return m_; }
+    std::uint32_t m() const {
+        return m_;
+    }
 
     // Quantile q used when these corrections were generated.
-    float q() const { return q_; }
+    float q() const {
+        return q_;
+    }
 
 private:
 #pragma pack(push, 1)

@@ -68,7 +68,7 @@ endfunction()
 #   - 15-puzzle domain (state, environment, Manhattan)
 #   - PDB build + lookup code
 #   - Neural heuristics (TorchScript / LibTorch bindings)
-#   - App / heuristic routing logic
+#   - App logic
 # ---------------------------------------------------------------------------
 
 add_library(bootcamp_core

@@ -26,7 +26,7 @@
 //     rank : uint32
 //     over : uint8
 //
-// This file is later loaded by NnOverCorrections, which merges duplicates
+// This file is later loaded by nn_over_corrections, which merges duplicates
 // and builds a fast lookup structure (rank -> max over) so that the neural
 // delta can be corrected to remain admissible.
 //
@@ -73,9 +73,11 @@ namespace {
      * Used to build mixed-radix weights for ranking/unranking partial permutations.
      */
     static std::uint64_t perm_count(int n, int k) {
-        if (k <= 0) return 1;
+        if (k <= 0)
+            return 1;
         std::uint64_t r = 1;
-        for (int i = 0; i < k; ++i) r *= static_cast<std::uint64_t>(n - i);
+        for (int i = 0; i < k; ++i)
+            r *= static_cast<std::uint64_t>(n - i);
         return r;
     }
 
@@ -135,7 +137,9 @@ namespace {
      *   tiles 1..15 -> goal positions 0..14
      *   blank (0)   -> position 15
      */
-    static int goal_index(int tile) { return (tile == 0) ? 15 : (tile - 1); }
+    static int goal_index(int tile) {
+        return (tile == 0) ? 15 : (tile - 1);
+    }
 
     /**
      * Compute Manhattan distance for tiles 1..7 only, given an abstract
@@ -183,11 +187,12 @@ namespace {
      *
      * This returns a tensor of shape [B] with the chosen class per sample.
      */
-    static torch::Tensor quantile_index_from_logits(const torch::Tensor &logits, double q) {
+    static torch::Tensor quantile_index_from_logits(const torch::Tensor &logits, const double q) {
         auto probs = torch::softmax(logits, /*dim=*/1);
         auto cdf = torch::cumsum(probs, /*dim=*/1);
         auto mask = cdf.ge(q).to(torch::kInt64); // [B,C] of 0/1
-        return mask.argmax(/*dim=*/1); // [B]
+        auto idx = mask.argmax(/*dim=*/1); // [B]
+        return idx;
     }
 
     // ----------------- TorchScript loading -----------------
@@ -221,9 +226,10 @@ namespace {
      * Simple helper: return the value following `key` in argv, or a default.
      * Example: --pdb path.bin  -> arg1(..., "--pdb") == "path.bin".
      */
-    static std::string arg1(int argc, char **argv, const std::string &key, const std::string &def = "") {
+    static std::string arg_one(int argc, char **argv, const std::string &key, const std::string &def = "") {
         for (int i = 1; i + 1 < argc; ++i) {
-            if (std::string(argv[i]) == key) return std::string(argv[i + 1]);
+            if (std::string(argv[i]) == key)
+                return std::string(argv[i + 1]);
         }
         return def;
     }
@@ -233,7 +239,9 @@ namespace {
      * Example: "--cpu" or "--append".
      */
     static bool has_flag(int argc, char **argv, const std::string &key) {
-        for (int i = 1; i < argc; ++i) if (std::string(argv[i]) == key) return true;
+        for (int i = 1; i < argc; ++i)
+            if (std::string(argv[i]) == key)
+                return true;
         return false;
     }
 
@@ -246,7 +254,8 @@ namespace {
     static std::vector<std::string> args_multi(int argc, char **argv, const std::string &key) {
         std::vector<std::string> out;
         for (int i = 1; i + 1 < argc; ++i) {
-            if (std::string(argv[i]) == key) out.push_back(std::string(argv[i + 1]));
+            if (std::string(argv[i]) == key)
+                out.push_back(std::string(argv[i + 1]));
         }
         return out;
     }
@@ -255,14 +264,14 @@ namespace {
 int main(int argc, char **argv) {
     try {
         // ----------- Parse command-line arguments -----------
-        const std::string pattern = arg1(argc, argv, "--pattern"); // "1_7" or "8_15"
-        const std::string pdb_path = arg1(argc, argv, "--pdb");
-        const std::string out_path = arg1(argc, argv, "--out");
+        const std::string pattern = arg_one(argc, argv, "--pattern"); // "1_7" or "8_15"
+        const std::string pdb_path = arg_one(argc, argv, "--pdb");
+        const std::string out_path = arg_one(argc, argv, "--out");
         const auto weights = args_multi(argc, argv, "--w"); // TorchScript model paths
-        const double q = std::stod(arg1(argc, argv, "--q", "0.3"));
-        const std::size_t batch = static_cast<std::size_t>(std::stoull(arg1(argc, argv, "--batch", "4096")));
-        const std::uint64_t start = static_cast<std::uint64_t>(std::stoull(arg1(argc, argv, "--start", "0")));
-        const std::uint64_t count = static_cast<std::uint64_t>(std::stoull(arg1(argc, argv, "--count", "0")));
+        const double q = std::stod(arg_one(argc, argv, "--q", "0.25"));
+        const std::size_t batch = static_cast<std::size_t>(std::stoull(arg_one(argc, argv, "--batch", "4096")));
+        const std::uint64_t start = static_cast<std::uint64_t>(std::stoull(arg_one(argc, argv, "--start", "0")));
+        const std::uint64_t count = static_cast<std::uint64_t>(std::stoull(arg_one(argc, argv, "--count", "0")));
         const bool use_cpu = has_flag(argc, argv, "--cpu");
         const bool append = has_flag(argc, argv, "--append");
 
@@ -271,7 +280,7 @@ int main(int argc, char **argv) {
                     "Usage:\n"
                     "  build_nn_over_corrections --pattern 1_7|8_15 --pdb <pdb.bin> --out <corr.bin>\n"
                     "                          --w <model_ts.pt> [--w <model2_ts.pt> ...]\n"
-                    "                          [--q 0.3] [--batch 4096] [--start 0] [--count 0]\n"
+                    "                          [--q 0.25] [--batch 4096] [--start 0] [--count 0]\n"
                     "                          [--cpu] [--append]\n";
             return 1;
         }
@@ -286,7 +295,8 @@ int main(int argc, char **argv) {
         // ----------- Open PDB file and determine N -----------
 
         std::ifstream pdb(pdb_path, std::ios::binary);
-        if (!pdb) throw std::runtime_error("Failed to open PDB file: " + pdb_path);
+        if (!pdb)
+            throw std::runtime_error("Failed to open PDB file: " + pdb_path);
 
         pdb.seekg(0, std::ios::end);
         const std::uint64_t N = static_cast<std::uint64_t>(pdb.tellg());
@@ -294,17 +304,20 @@ int main(int argc, char **argv) {
 
         // We iterate over ranks in [start, end), where end can be clipped by `count`.
         const std::uint64_t end = (count == 0) ? N : std::min<std::uint64_t>(N, start + count);
-        if (start >= end) throw std::runtime_error("Bad range: start>=end");
+        if (start >= end)
+            throw std::runtime_error("Bad range: start>=end");
 
         // ----------- Device selection (CPU vs CUDA) -----------
 
         torch::Device device = torch::kCPU;
-        if (!use_cpu && torch::cuda::is_available()) device = torch::kCUDA;
+        if (!use_cpu && torch::cuda::is_available())
+            device = torch::kCUDA;
 
         // ----------- Load TorchScript ensemble -----------
 
         auto models = load_ensemble(weights, device);
-        if (models.empty()) throw std::runtime_error("No models loaded.");
+        if (models.empty())
+            throw std::runtime_error("No models loaded.");
 
         // Infer maximum delta class from the model output shape
         int max_delta = 0;
@@ -312,7 +325,8 @@ int main(int argc, char **argv) {
             torch::InferenceMode guard;
             auto dummy = torch::zeros({1, m}, torch::TensorOptions().dtype(torch::kInt64).device(device));
             auto logits = models[0].forward({dummy}).toTensor();
-            if (logits.dim() != 2) throw std::runtime_error("Model output must be [B,C] logits.");
+            if (logits.dim() != 2)
+                throw std::runtime_error("Model output must be [B,C] logits.");
             max_delta = static_cast<int>(logits.size(1)) - 1;
         }
 
@@ -323,24 +337,30 @@ int main(int argc, char **argv) {
         if (append) {
             // Append mode: read existing header, then continue writing records at the end.
             out.open(out_path, std::ios::in | std::ios::out | std::ios::binary);
-            if (!out) throw std::runtime_error("Failed to open for append: " + out_path);
+            if (!out)
+                throw std::runtime_error("Failed to open for append: " + out_path);
 
             out.read(reinterpret_cast<char *>(&header), sizeof(header));
-            if (!out) throw std::runtime_error("Failed to read existing header: " + out_path);
+            if (!out)
+                throw std::runtime_error("Failed to read existing header: " + out_path);
 
             for (int i = 0; i < 8; ++i)
-                if (header.magic[i] != MAGIC[i]) throw std::runtime_error("Bad magic in existing file");
-            if (header.version != 1) throw std::runtime_error("Bad version in existing file");
-            if (header.m != static_cast<std::uint32_t>(m)) throw
-                    std::runtime_error("Pattern mismatch in existing file");
+                if (header.magic[i] != MAGIC[i])
+                    throw std::runtime_error("Bad magic in existing file");
+            if (header.version != 1)
+                throw std::runtime_error("Bad version in existing file");
+            if (header.m != static_cast<std::uint32_t>(m))
+                throw std::runtime_error("Pattern mismatch in existing file");
 
             out.seekp(0, std::ios::end);
         } else {
             // Fresh file: write a new header with count=0 (we patch it later).
             out.open(out_path, std::ios::out | std::ios::binary | std::ios::trunc);
-            if (!out) throw std::runtime_error("Failed to open output: " + out_path);
+            if (!out)
+                throw std::runtime_error("Failed to open output: " + out_path);
 
-            for (int i = 0; i < 8; ++i) header.magic[i] = MAGIC[i];
+            for (int i = 0; i < 8; ++i)
+                header.magic[i] = MAGIC[i];
             header.version = 1;
             header.pattern = pattern_id;
             header.m = static_cast<std::uint32_t>(m);
@@ -371,7 +391,8 @@ int main(int argc, char **argv) {
             // 1) Read B PDB entries (one byte per rank) from file
             pdb_vals.assign(B, 0);
             pdb.read(reinterpret_cast<char *>(pdb_vals.data()), static_cast<std::streamsize>(B));
-            if (!pdb) throw std::runtime_error("Failed reading PDB bytes");
+            if (!pdb)
+                throw std::runtime_error("Failed reading PDB bytes");
 
             // 2) Build Torch input [B, m] and compute true deltas for this batch
             auto x_cpu = torch::empty({static_cast<int64_t>(B), m},
@@ -400,8 +421,10 @@ int main(int argc, char **argv) {
                                      ? manhattan_from_seq_1_7(seq)
                                      : manhattan_from_seq_8_15(seq);
                 int dt = static_cast<int>(pdb_vals[i]) - manh;
-                if (dt < 0) dt = 0;
-                if (dt > max_delta) dt = max_delta;
+                if (dt < 0)
+                    dt = 0;
+                if (dt > max_delta)
+                    dt = max_delta;
                 true_delta[i] = dt;
             }
 
@@ -419,7 +442,8 @@ int main(int argc, char **argv) {
                     if (!init) {
                         best = d;
                         init = true;
-                    } else { best = torch::min(best, d); }
+                    } else
+                        { best = torch::min(best, d); }
                 }
             }
 
