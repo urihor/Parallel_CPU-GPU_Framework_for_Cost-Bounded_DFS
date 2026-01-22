@@ -10,7 +10,7 @@
 #include "work.h"
 #include "cb-dfs.h"
 #include "do_iteration.h"
-#include "generate_work.h"   // assumed existing header for Algorithm 2
+#include "generate_work.h"
 
 namespace batch_ida {
     /**
@@ -107,7 +107,7 @@ namespace batch_ida {
                 // Safety fallback: service was turned off unexpectedly
                 bound = heuristic(start);
             } else {
-                // Wait for the neural value using polling only (NO try_get_h, NO erase).
+                // Wait for the neural value using polling only .
                 // First do a short spin-yield phase to avoid sleeping if the batch is
                 // about to complete.
                 for (int i = 0; i < 256 && st == NeuralBatchService::HRequestStatus::Pending; ++i) {

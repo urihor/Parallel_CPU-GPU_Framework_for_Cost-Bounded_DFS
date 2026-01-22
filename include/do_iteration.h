@@ -36,8 +36,8 @@ namespace batch_ida {
     //   * guide_batch_enabled():
     //       - NN is used only for “guiding” (ordering / scheduling) but not for
     //         pruning. The actual pruning heuristic remains the synchronous one
-    //         (e.g., PDB). The gating still avoids doing heavy PDB work until
-    //         the NN value for s is ready, so CPU work can better overlap GPU work.
+    //         (e.g., PDB). The gating still avoids doing PDB work until
+    //         the NN value for s is ready.
     //
     template<class Env, class Heuristic>
     bool DoIteration(
@@ -104,7 +104,7 @@ namespace batch_ida {
                     // NN value is not ready yet. We do not compute the synchronous
                     // heuristic here; we simply return false and let the calling
                     // CB-DFS thread pick another Work. This allows GPU work to run
-                    // in parallel without blocking on a heavy PDB call.
+                    // in parallel without blocking.
                     return false; // gate: no PDB here
                 }
 

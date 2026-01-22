@@ -35,7 +35,7 @@ namespace app {
         bool preload_pdb = true;
 
         // ----------------------------
-        // NN quantile config (your current setup)
+        // NN quantile config
         // ----------------------------
         float quantile_q = 0.25f;
         bool add_manhattan = true;
@@ -55,10 +55,6 @@ namespace app {
         // ----------------------------
         // TorchScript model path (relative to bin/working dir)
         std::string deepcubea_ts = "puzzle15_torchscript.pt";
-
-        // score_to_h: h = floor( (y - base) * scale )
-        // If you don't know yet, keep 1.0 and tune later.
-        float deepcubea_scale = 1.0f;
 
         // Optional: override base (score of goal). If NaN -> compute base from goal at init.
         float deepcubea_base_override = std::numeric_limits<float>::quiet_NaN();

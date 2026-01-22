@@ -54,13 +54,15 @@ static std::uint64_t expected_bytes_for_k(int k) {
 #endif
 }
 
-// Checks if file p exists *and* has exactly the size we expect for a k-PDB.
+// Checks if file p exists and has exactly the size we expect for a k-PDB.
 // Used to decide whether we need to rebuild the PDB or can reuse it.
 static bool file_ok(const fs::path &p, int k) {
     std::error_code ec;
-    if (!fs::exists(p, ec)) return false;
+    if (!fs::exists(p, ec))
+        return false;
     auto sz = fs::file_size(p, ec);
-    if (ec) return false;
+    if (ec)
+        return false;
     return sz == expected_bytes_for_k(k);
 }
 
@@ -120,10 +122,12 @@ static int ManhattanHeuristic(const StpEnv::State &s) {
 }
 
 // Trivial zero heuristic (for experimentation / debugging only).
-static int Heuristic0(const StpEnv::State &) { return 0; }
+static int Heuristic0(const StpEnv::State &) {
+    return 0;
+}
 
 // ------------------------------------------------------------
-// NN service bootstrap (our models + correction tables)
+// NN service (our models + correction tables)
 // ------------------------------------------------------------
 // This global shared_ptr keeps the quantile NN heuristic alive as long as the
 // NeuralBatchService lambda is using it.
@@ -162,18 +166,17 @@ static void start_nn_service_quantile(const app::AppConfig &cfg) {
 }
 
 // ------------------------------------------------------------
-// NN service bootstrap (DeepCubeA model)
+// NN service (DeepCubeA model)
 // ------------------------------------------------------------
 // Global handle to the DeepCubeA heuristic; used by its own batching wrapper.
 static std::shared_ptr<DeepCubeA15Heuristic> g_deepcubea;
 
 // Start the DeepCubeA-based heuristic service. This assumes CUDA is available
-// (we only call this in such a case) and uses AppConfig for scale/base etc.
+// (we only call this in such a case) and uses AppConfig for base etc.
 static void start_deepcubea_service(const app::AppConfig &cfg) {
     DeepCubeA15Heuristic::Options opt;
     opt.ts_path = cfg.deepcubea_ts; // TorchScript model path
     opt.device = torch::kCUDA; // we only enter here if CUDA is available
-    opt.scale = cfg.deepcubea_scale; // scale factor on network output
     opt.base_override = cfg.deepcubea_base_override; // optional fixed base (NaN means "auto")
 
     g_deepcubea = std::make_shared<DeepCubeA15Heuristic>(opt);
@@ -300,12 +303,17 @@ namespace app {
     // Parse the --mode=... argument into a RunMode enum.
     // Supported values: pdb, pdb-guide-nn, nn, deepcubea.
     static RunMode parse_mode(std::string s) {
-        for (auto &c: s) c = (char) std::tolower((unsigned char) c);
+        for (auto &c: s)
+            c = (char) std::tolower((unsigned char) c);
 
-        if (s == "pdb") return RunMode::PdbOnly;
-        if (s == "pdb-guide-nn") return RunMode::PdbGuideNN;
-        if (s == "nn") return RunMode::NNPrune;
-        if (s == "deepcubea") return RunMode::DeepCubeA;
+        if (s == "pdb")
+            return RunMode::PdbOnly;
+        if (s == "pdb-guide-nn")
+            return RunMode::PdbGuideNN;
+        if (s == "nn")
+            return RunMode::NNPrune;
+        if (s == "deepcubea")
+            return RunMode::DeepCubeA;
 
         throw std::invalid_argument("Unknown --mode. Use: pdb | pdb-guide-nn | nn | deepcubea");
     }
@@ -330,7 +338,8 @@ namespace app {
 
             auto get_val = [&](const char *key) -> std::string {
                 const std::string k = std::string(key) + "=";
-                if (a.rfind(k, 0) == 0) return a.substr(k.size());
+                if (a.rfind(k, 0) == 0)
+                    return a.substr(k.size());
                 return {};
             };
 
@@ -458,8 +467,7 @@ namespace app {
             require_file(cfg.corr1_7, "corr1_7");
             require_file(cfg.corr8_15, "corr8_15");
         } else if (mode == RunMode::DeepCubeA) {
-            // DeepCubeA requires CUDA (you already handle fallback if CUDA is not available).
-            // Also require the TorchScript model file to exist.
+            // require the TorchScript model file to exist.
             require_file(cfg.deepcubea_ts, "DeepCubeA TorchScript model ");
         }
 

@@ -60,7 +60,8 @@ void DeepCubeA15Heuristic::start_service(std::size_t max_batch_size,
 int DeepCubeA15Heuristic::score_to_h(float y) const {
     // h = max(0, floor(scale * (y - base)))
     float z = (y - base_) * scale_;
-    if (z <= 0.0f) return 0;
+    if (z <= 0.0f)
+        return 0;
     return static_cast<int>(std::floor(z + 1e-6f));
 }
 
